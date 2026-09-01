@@ -1,0 +1,62 @@
+﻿#version 450
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer BufferA {
+    float A[];
+};
+
+layout(std430, binding = 1) readonly buffer BufferB {
+    float B[];
+};
+
+layout(std430, binding = 2) writeonly buffer BufferC {
+    float C[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint M;
+    uint K;
+    uint N;
+} dims;
+
+shared float tileA[16][16];
+shared float tileB[16][16];
+
+void main() {
+    uint row = gl_GlobalInvocationID.y;
+    uint col = gl_GlobalInvocationID.x;
+    uint localRow = gl_LocalInvocationID.y;
+    uint localCol = gl_LocalInvocationID.x;
+
+    float acc = 0.0;
+    uint numTiles = (dims.K + 15) / 16;
+
+    for (uint t = 0; t < numTiles; ++t) {
+        uint tiledK_A = t * 16 + localCol;
+        if (row < dims.M && tiledK_A < dims.K) {
+            tileA[localRow][localCol] = A[row * dims.K + tiledK_A];
+        } else {
+            tileA[localRow][localCol] = 0.0;
+        }
+
+        uint tiledK_B = t * 16 + localRow;
+        if (tiledK_B < dims.K && col < dims.N) {
+            tileB[localRow][localCol] = B[tiledK_B * dims.N + col];
+        } else {
+            tileB[localRow][localCol] = 0.0;
+        }
+
+        barrier();
+
+        for (uint k = 0; k < 16; ++k) {
+            acc += tileA[localRow][k] * tileB[k][localCol];
+        }
+
+        barrier();
+    }
+
+    if (row < dims.M && col < dims.N) {
+        C[row * dims.N + col] = acc;
+    }
+}

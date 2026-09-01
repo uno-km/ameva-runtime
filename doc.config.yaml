@@ -1,4 +1,4 @@
-﻿# doc.config.yaml - AMEVA-Vulkan-Runtime Single Source of Truth
+# doc.config.yaml - AMEVA-Vulkan-Runtime Single Source of Truth
 name: "AMEVA-Vulkan-Runtime"
 package_name_pypi: "ameva-vulkan-runtime"
 package_name_npm: "ameva-vulkan-runtime"
@@ -30,8 +30,8 @@ features:
     desc_ko: "dlopen 라이브러리 오픈(V0)부터 E2E 추론(V11)까지 12단계로 검증하며, 오류 시 투명한 CPU NEON 복구를 보장합니다."
   - title_en: "Multi-Modal Cross-Acceleration"
     title_ko: "전 모달리티 단일 런타임 공유"
-    desc_en: "Powers Whisper STT, LLaVA Vision, LLaMA/BitNet LLM, and Stable Diffusion from a single 58MB shared core."
-    desc_ko: "단일 58MB 공유 라이브러리로 Whisper 음성인식, LLaVA 비전, LLaMA/BitNet LLM, Stable Diffusion을 통합 가속합니다."
+    desc_en: "Powers Whisper STT, LLaVA Vision, LLaMA/BitNet LLM, and Stable Diffusion from a unified C++20 shared HAL core."
+    desc_ko: "단일 C++20 통합 공유 HAL 코어로 Whisper 음성인식, LLaVA 비전, LLaMA/BitNet LLM, Stable Diffusion을 통합 가속합니다."
 
 matrix_table:
   - category: "Supported GPUs"

@@ -56,6 +56,15 @@ class TestDoctorV0V11(unittest.TestCase):
             self.assertEqual(v0.result, "FAIL",
                              "Vulkan ICD 없음에도 V0 PASS 반환 — 거짓 성공 탐지됨")
 
+    def test_v7_v11_honestly_reported(self):
+        """V7~V11 단계가 호스트 환경에서 거짓 PASS로 위장되지 않고 SKIP으로 정직하게 보고됨을 검증."""
+        report = self.doc.run_self_test(verbose=False)
+        for stage in report.stages[7:]:
+            # 호스트에서는 셰이더 컴파일/디스패치가 없으므로 SKIP이어야 함 (거짓 PASS 금지)
+            if not report.overall_success:
+                self.assertEqual(stage.result, "SKIP",
+                                 f"V{stage.stage_id} 단계가 셰이더 미컴파일 상태에서 거짓 PASS 반환")
+
     def test_quick_probe_returns_bool(self):
         """quick_probe() 가 항상 bool 을 반환함을 검증."""
         result = self.doc.quick_probe()

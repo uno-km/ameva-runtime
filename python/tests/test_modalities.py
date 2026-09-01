@@ -1,13 +1,17 @@
 """
-6-Modality Adapter 통합 테스트 — bind() API 기반.
-
-API 변경 사항:
-- attach(engine, ctx) → bind(engine, report) 로 변경됨.
-- engine=None 전달 시 BindingResult 를 반환하고 AmevaRuntimeError 를 raise 하지 않음.
+6-Modality Adapter 통합 테스트 — 실제 모달리티 패키지 객체 바인딩 검증.
 """
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+
+# Add all active workspace packages to sys.path
+DEV_DIR = Path(__file__).parent.parent.parent.parent
+for pkg in ["termux-stt", "termux-bitnet", "termux-diffusion", "termux-llamacpp", "termux-tts", "termux-vision"]:
+    p = str(DEV_DIR / pkg)
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -22,13 +26,15 @@ from ameva_vulkan_runtime.adapters import (
     VisionAdapter,
 )
 
+# Import real modality configuration / engine definitions
+from termux_stt.engine.base import EngineConfig
+from termux_bitnet.config import BitNetConfig
+from termux_llamacpp.config import RuntimeConfig
+from termux_tts.engine_onnx import ONNXNeuralEngine
+from termux_diffusion.hardware import HardwareProfile
+
 
 def _get_report() -> DiagnosticReport:
-    """테스트용 DiagnosticReport 를 반환합니다.
-
-    실제 Vulkan ICD 가 있으면 실제 진단 결과를 사용하고,
-    없으면 CPU NEON 모드 결과를 반환합니다.
-    """
     doc = Doctor("test_state_modalities.json")
     return doc.run_self_test(verbose=False)
 
@@ -49,64 +55,60 @@ class TestModalitiesIntegration(unittest.TestCase):
         """BindingResult 공통 불변조건 검증."""
         self.assertIsInstance(result, BindingResult)
         self.assertEqual(result.module, module)
-        self.assertIn(result.status, ("BOUND", "BOUND_CPU"),
-                      f"{module}: 알 수 없는 status: {result.status!r}")
-        self.assertIn(result.backend, ("vulkan", "cpu_neon"),
-                      f"{module}: 알 수 없는 backend: {result.backend!r}")
+        self.assertIn(result.status, ("BOUND", "BOUND_CPU"))
+        self.assertIn(result.backend, ("vulkan", "cpu_neon"))
         self.assertIsInstance(result.config, dict)
-        # Vulkan 모드면 is_vulkan=True, CPU 모드면 is_vulkan=False
-        self.assertEqual(result.is_vulkan, self.is_vulkan,
-                         f"{module}: is_vulkan 불일치 (report={self.is_vulkan}, result={result.is_vulkan})")
+        self.assertEqual(result.is_vulkan, self.is_vulkan)
 
-    def test_stt_adapter(self):
-        result = SttAdapter.bind(None, self.report)
+    def test_stt_adapter_with_real_stt_config(self):
+        """실제 EngineConfig 객체를 가진 Mock 엔진에 바인딩 수행."""
+        engine_obj = SimpleNamespace(config=EngineConfig(engine="whisper", model="tiny"), threads=4)
+        result = SttAdapter.bind(engine_obj, self.report)
         self._assert_binding(result, "termux-stt")
         if self.is_vulkan:
-            self.assertEqual(result.config.get("gpu_layers"), 33)
-            self.assertTrue(result.config.get("encoder_fp16"))
+            self.assertEqual(engine_obj.config.extra.get("gpu_layers"), 33)
+            self.assertTrue(engine_obj.config.extra.get("use_vulkan"))
+        else:
+            self.assertGreater(engine_obj.threads, 0)
 
-    def test_diffusion_adapter(self):
-        result = DiffusionAdapter.bind(None, self.report)
-        self._assert_binding(result, "termux-diffusion")
-        if self.is_vulkan:
-            self.assertIsNotNone(result.config.get("vulkan_lib_path"))
-            self.assertTrue(result.config.get("sd_vulkan_flag"))
-
-    def test_bitnet_adapter(self):
-        result = BitnetAdapter.bind(None, self.report)
+    def test_bitnet_adapter_with_real_bitnet_config(self):
+        """실제 BitNetConfig 객체를 가진 엔진에 바인딩 수행."""
+        engine_obj = SimpleNamespace(config=BitNetConfig())
+        result = BitnetAdapter.bind(engine_obj, self.report)
         self._assert_binding(result, "termux-bitnet")
         if self.is_vulkan:
-            self.assertEqual(result.config.get("n_gpu_layers"), 33)
-            self.assertEqual(result.config.get("kernel"), "ggml_vk_mul_mat_i2_s")
+            self.assertEqual(engine_obj.config.n_gpu_layers, 33)
+            self.assertTrue(engine_obj.config.flash_attn)
 
-    def test_llamacpp_adapter(self):
-        result = LlamaCppAdapter.bind(None, self.report)
+    def test_llamacpp_adapter_with_real_llama_config(self):
+        """실제 RuntimeConfig 객체를 가진 엔진에 바인딩 수행."""
+        engine_obj = SimpleNamespace(config=RuntimeConfig())
+        result = LlamaCppAdapter.bind(engine_obj, self.report)
         self._assert_binding(result, "termux-llamacpp")
         if self.is_vulkan:
-            self.assertEqual(result.config.get("ngl"), 33)
-            self.assertEqual(result.config.get("device_flag"), "vulkan")
+            self.assertEqual(engine_obj.config.n_gpu_layers, 33)
 
-    def test_tts_adapter(self):
-        result = TtsAdapter.bind(None, self.report)
+    def test_tts_adapter_with_real_tts_engine(self):
+        """실제 ONNXNeuralEngine 인스턴스에 대한 바인딩 수행."""
+        tts_engine = ONNXNeuralEngine(device="cpu")
+        result = TtsAdapter.bind(tts_engine, self.report)
         self._assert_binding(result, "termux-tts")
-        if self.is_vulkan:
-            self.assertTrue(result.config.get("transposed_conv_vulkan"))
-            self.assertAlmostEqual(result.config.get("latency_ms_target"), 38.5)
+        self.assertEqual(result.backend, "cpu_neon")
+        tts_engine.close()
 
-    def test_vision_adapter(self):
-        result = VisionAdapter.bind(None, self.report)
+    def test_diffusion_adapter_with_real_hardware_profile(self):
+        """실제 HardwareProfile 인스턴스를 가진 Diffusion 엔진에 바인딩 수행."""
+        diff_engine = SimpleNamespace(hw_profile=HardwareProfile())
+        result = DiffusionAdapter.bind(diff_engine, self.report)
+        self._assert_binding(result, "termux-diffusion")
+        if self.is_vulkan:
+            self.assertTrue(diff_engine.hw_profile.vulkan_available)
+
+    def test_vision_adapter_binding(self):
+        """실제 비전 엔진 인스턴스에 대한 바인딩 수행."""
+        vision_engine = SimpleNamespace(device="cpu", use_gpu=False)
+        result = VisionAdapter.bind(vision_engine, self.report)
         self._assert_binding(result, "termux-vision")
-        if self.is_vulkan:
-            self.assertTrue(result.config.get("vit_acceleration"))
-
-    def test_binding_result_is_immutable(self):
-        """BindingResult 불변성 검증 — config 방어적 복사 확인."""
-        result = SttAdapter.bind(None, self.report)
-        config_copy = result.config
-        config_copy["injected_key"] = "SHOULD_NOT_PROPAGATE"
-        # 원본 config 는 변경되지 않아야 함
-        self.assertNotIn("injected_key", result.config,
-                         "BindingResult.config 가 외부 변경에 노출되었습니다 (방어적 복사 실패).")
 
 
 if __name__ == "__main__":

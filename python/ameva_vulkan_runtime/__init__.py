@@ -1,10 +1,11 @@
 """
 AMEVA Unified Vulkan Acceleration Runtime & SDK
 """
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
-from .core import VulkanContext, create_context
+from .core import VulkanContext, create_context, get_or_create_context
 from .doctor import Doctor, DiagnosticReport, StageReport
+from .bindings import AmevaVulkanLib, DiagnosticResultStruct, load_native_lib
 from .protocol import IVulkanConsumer, BindingResult
 from .platform import is_termux, is_android, is_proot, get_termux_prefix, get_termux_home
 from .exceptions import (
@@ -30,9 +31,13 @@ def is_available() -> bool:
 __all__ = [
     "VulkanContext",
     "create_context",
+    "get_or_create_context",
     "Doctor",
     "DiagnosticReport",
     "StageReport",
+    "AmevaVulkanLib",
+    "DiagnosticResultStruct",
+    "load_native_lib",
     "IVulkanConsumer",
     "BindingResult",
     # Platform utilities (SSOT for uno-km ecosystem)
@@ -56,4 +61,3 @@ __all__ = [
     "VisionAdapter",
     "is_available",
 ]
-

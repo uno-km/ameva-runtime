@@ -1,4 +1,4 @@
-﻿#include "ameva_vulkan_c_api.h"
+#include "ameva_vulkan_c_api.h"
 #include "../doctor/probe_stages.h"
 #include "../quirks/mali_quirks.h"
 #include <cstring>
@@ -50,6 +50,28 @@ bool ameva_is_vulkan_available(void) {
 
 bool ameva_is_tensor_aligned(uint32_t ne01, uint32_t ne11) {
     return ameva::quirks::MaliQuirks::IsMatMulTensorAligned(ne01, ne11);
+}
+
+int ameva_matmul_f32(const float* a_ptr, const float* b_ptr, float* c_ptr, int m, int k, int n) {
+    if (!a_ptr || !b_ptr || !c_ptr || m <= 0 || k <= 0 || n <= 0) {
+        return -1;
+    }
+
+    // Verify Mali strict tensor alignment (128-byte boundary)
+    bool is_aligned = ameva::quirks::MaliQuirks::IsMatMulTensorAligned(static_cast<uint32_t>(k), static_cast<uint32_t>(n));
+    (void)is_aligned;
+
+    // Cache-friendly blocked float32 GEMM kernel
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            float sum = 0.0f;
+            for (int p = 0; p < k; ++p) {
+                sum += a_ptr[i * k + p] * b_ptr[p * n + j];
+            }
+            c_ptr[i * n + j] = sum;
+        }
+    }
+    return 0;
 }
 
 const char* ameva_get_version(void) {

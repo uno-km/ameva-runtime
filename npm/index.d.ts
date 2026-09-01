@@ -1,4 +1,4 @@
-﻿export interface StageReport {
+export interface StageReport {
   stageId: number;
   stageName: string;
   result: "PASS" | "FAIL" | "SKIP";
@@ -7,7 +7,7 @@
 }
 
 export interface DiagnosticReport {
-  overallSuccess: bool;
+  overallSuccess: boolean;
   deviceName: string;
   driverVersion: string;
   loaderPath: string;
@@ -22,6 +22,7 @@ export class Doctor {
   constructor(statePath?: string);
   runSelfTest(verbose?: boolean): Promise<DiagnosticReport>;
   quickProbe(): boolean;
+  quickProbeDevice(): string | null;
 }
 
 export class VulkanContext {
@@ -31,11 +32,18 @@ export class VulkanContext {
   backendType: string;
   vulkanVersion: string;
   isActive: boolean;
+  isGpu: boolean;
+  executionFlags: Record<string, any>;
   isVulkan(): boolean;
+  toEngineFlags(engineName?: string): Record<string, any>;
+  allocateBuffer(sizeBytes: number): number;
   close(): void;
 }
 
-export function createContext(options?: { device?: string; memoryLimitMb?: number }): Promise<VulkanContext>;
+export class PlatformNotSupportedError extends Error {}
+
+export function createContext(options?: { device?: string; memoryLimitMb?: number } | string): VulkanContext;
+export function getOrCreateContext(options?: { device?: string; memoryLimitMb?: number } | string | VulkanContext): VulkanContext;
 export function isAvailable(): boolean;
 
 export class SttAdapter { static attach(engine: any, ctx: VulkanContext): any; }

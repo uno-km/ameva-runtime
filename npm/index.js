@@ -1,5 +1,5 @@
-﻿const { Doctor } = require('./lib/doctor');
-const { VulkanContext, createContext } = require('./lib/context');
+const { Doctor } = require('./lib/doctor');
+const { VulkanContext, createContext, getOrCreateContext, PlatformNotSupportedError } = require('./lib/context');
 const {
   SttAdapter,
   DiffusionAdapter,
@@ -18,6 +18,8 @@ module.exports = {
   Doctor,
   VulkanContext,
   createContext,
+  getOrCreateContext,
+  PlatformNotSupportedError,
   SttAdapter,
   DiffusionAdapter,
   BitnetAdapter,

@@ -38,3 +38,7 @@ Makefile
 *.o
 *.a
 bin/
+
+state.json
+*.tmp
+

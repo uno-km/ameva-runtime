@@ -28,7 +28,13 @@ _MALI_VENDOR_ID = 0x13B5
 
 
 def _is_vulkan_report(report: DiagnosticReport) -> bool:
-    return report.recommended_backend == "vulkan" and report.overall_success
+    if report is None:
+        return False
+    return bool(
+        report.overall_success
+        or report.recommended_backend in ("vulkan", "vulkan_driver_only")
+        or report.passed_stages >= 7
+    )
 
 
 def _make_cpu_fallback(module: str, report: DiagnosticReport, config: dict) -> BindingResult:
@@ -221,7 +227,6 @@ class BitnetAdapter:
 
         if is_vk:
             ngl = 33
-            kernel = "ggml_vk_mul_mat_i2_s"
 
             # Mali 128-byte 정렬 강제 여부
             mali_align_required = (report.vendor_id == _MALI_VENDOR_ID or
@@ -230,7 +235,6 @@ class BitnetAdapter:
             config.update({
                 "backend": "vulkan",
                 "n_gpu_layers": ngl,
-                "kernel": kernel,
                 "mali_128byte_align": mali_align_required,
                 "flash_attn": True,
             })
@@ -296,41 +300,51 @@ class LlamaCppAdapter:
         }
 
         if is_vk:
+            import os
+            cpu_cores = os.cpu_count() or 8
+            big_cores = max(1, cpu_cores // 2)
             ngl = 33
+
+            # Mali GPU 감지 여부
+            is_mali = (report.vendor_id == _MALI_VENDOR_ID or "Mali" in report.device_name)
+
             config.update({
                 "backend": "vulkan",
                 "ngl": ngl,
                 "device_flag": "vulkan",
                 "flash_attn": True,
                 "ctx_size": 2048,
+                "threads": big_cores,
+                "mali_align": is_mali,
             })
 
             if engine is not None:
                 try:
                     # engine 이 dict 형 config 인 경우
                     if isinstance(engine, dict):
-                        engine["ngl"] = ngl
+                        engine.setdefault("ngl", ngl)
                         engine["device"] = "vulkan"
-                        engine["flash_attn"] = True
+                        engine.setdefault("flash_attn", True)
+                        engine.setdefault("threads", big_cores)
                     # engine 이 객체 형 config 인 경우
                     elif hasattr(engine, "ngl"):
-                        engine.ngl = ngl
+                        if getattr(engine, "ngl", 0) == 0:
+                            engine.ngl = ngl
                         if hasattr(engine, "device"):
                             engine.device = "vulkan"
+                        if hasattr(engine, "threads") and getattr(engine, "threads", 0) == 0:
+                            engine.threads = big_cores
                     # engine 이 subprocess cmd list 인 경우
                     elif isinstance(engine, list):
-                        if "-ngl" not in engine:
+                        if "-ngl" not in engine and "--n-gpu-layers" not in engine:
                             engine.extend(["-ngl", str(ngl)])
-                        if "--device" not in engine:
+                        if "--device" not in engine and "-dev" not in engine:
                             engine.extend(["--device", "vulkan"])
-                    else:
-                        logger.warning(
-                            "[ameva-vulkan-runtime:LlamaCppAdapter] 인식할 수 없는 engine 타입: %s",
-                            type(engine).__name__
-                        )
+                        if "-t" not in engine and "--threads" not in engine:
+                            engine.extend(["-t", str(big_cores)])
                     logger.info(
-                        "[ameva-vulkan-runtime:LlamaCppAdapter] -ngl %d --device vulkan 주입 완료"
-                        " (device=%s)", ngl, report.device_name
+                        "[ameva-vulkan-runtime:LlamaCppAdapter] -ngl %d -t %d --device vulkan 주입 완료"
+                        " (device=%s, is_mali=%s)", ngl, big_cores, report.device_name, is_mali
                     )
                 except Exception as e:
                     logger.error("[ameva-vulkan-runtime:LlamaCppAdapter] 바인딩 오류: %s", e)
@@ -344,16 +358,28 @@ class LlamaCppAdapter:
                 config=config, status="BOUND",
             )
         else:
+            import os
+            cpu_cores = os.cpu_count() or 8
+            big_cores = max(1, cpu_cores // 2)
             config["ngl"] = 0
+            config["threads"] = big_cores
             if engine is not None:
                 if isinstance(engine, dict):
                     engine["ngl"] = 0
+                    engine.setdefault("threads", big_cores)
                 elif hasattr(engine, "ngl"):
                     engine.ngl = 0
+                    if hasattr(engine, "threads"):
+                        engine.threads = big_cores
+                elif isinstance(engine, list):
+                    if "-t" not in engine and "--threads" not in engine:
+                        engine.extend(["-t", str(big_cores)])
             return _make_cpu_fallback(LlamaCppAdapter.module_name, report, config)
 
     def unbind(self) -> None:
         logger.info("[ameva-vulkan-runtime:LlamaCppAdapter] 바인딩 해제.")
+
+    attach = bind
 
 
 # ===========================================================================
@@ -386,7 +412,7 @@ class TtsAdapter:
                 try:
                     if hasattr(engine, "use_vulkan"):
                         engine.use_vulkan = True
-                    if hasattr(engine, "fp16"):
+                    if hasattr(engine, "fp16") and hasattr(engine, "device") and getattr(engine, "device") != "cpu":
                         engine.fp16 = True
                     logger.info(
                         "[ameva-vulkan-runtime:TtsAdapter] Piper/VITS Vulkan 바인딩 완료"
