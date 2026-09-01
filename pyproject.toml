@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ameva-vulkan-runtime"
+version = "1.0.0"
+description = "Unified Cross-Modal Vulkan GPU Acceleration Runtime & HAL for Mobile Android"
+readme = "README.pypi.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Eunho Kim", email = "contact@uno-km.com" }]
+keywords = ["vulkan", "gpu", "android", "termux", "acceleration", "adreno", "mali", "hal", "ameva"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Android",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.scripts]
+ameva-gpu = "ameva_vulkan_runtime.cli:main"
+
+[project.urls]
+Homepage = "https://uno-km.vercel.app/lib/vulkan/"
+Repository = "https://github.com/uno-km/ameva-vulkan-runtime"
+Documentation = "https://uno-km.vercel.app/lib/vulkan/"
+
+# --------------------------------------------------------------------------
+# Optional extras — 각 모달리티 패키지와의 통합을 위한 선택적 의존성.
+# ameva-vulkan-runtime 자체는 이 의존성 없이도 독립 실행 가능합니다.
+#
+# 설치 예시:
+#   pip install ameva-vulkan-runtime[stt]       # STT 모달리티
+#   pip install ameva-vulkan-runtime[all]       # 전체 6대 모달리티
+# --------------------------------------------------------------------------
+[project.optional-dependencies]
+stt       = ["termux-stt>=1.1.1"]
+diffusion = ["termux-diffusion>=1.3.1"]
+bitnet    = ["termux-bitnet>=1.0.0"]
+llamacpp  = ["termux-llamacpp>=1.0.0"]
+tts       = ["termux-tts>=1.0.0"]
+vision    = ["termux-vision>=1.0.0"]
+all = [
+    "termux-stt>=1.1.1",
+    "termux-diffusion>=1.3.1",
+    "termux-bitnet>=1.0.0",
+    "termux-llamacpp>=1.0.0",
+    "termux-tts>=1.0.0",
+    "termux-vision>=1.0.0",
+]

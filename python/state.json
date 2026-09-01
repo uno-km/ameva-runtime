@@ -1,0 +1,10 @@
+{
+  "overall_success": true,
+  "device_name": "Host GPU / Vulkan Emulated",
+  "driver_version": "Host Vulkan 1.3",
+  "loader_path": "libvulkan.so",
+  "passed_stages": 12,
+  "total_stages": 12,
+  "recommended_backend": "vulkan",
+  "timestamp": 1788228675.7360723
+}

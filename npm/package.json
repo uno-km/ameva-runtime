@@ -1,0 +1,30 @@
+﻿{
+  "name": "ameva-vulkan-runtime",
+  "version": "1.0.0",
+  "description": "Unified Cross-Modal Vulkan GPU Acceleration Runtime & HAL for Mobile Android",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "bin": {
+    "ameva-gpu": "./bin/cli.js"
+  },
+  "scripts": {
+    "test": "node test.js"
+  },
+  "keywords": [
+    "vulkan",
+    "gpu",
+    "android",
+    "termux",
+    "acceleration",
+    "adreno",
+    "mali",
+    "hal",
+    "ameva"
+  ],
+  "author": "Eunho Kim <uno-km>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uno-km/ameva-vulkan-runtime.git"
+  }
+}
