@@ -14,8 +14,6 @@ import ctypes
 import json
 import logging
 import os
-import platform
-import struct
 import tempfile
 import time
 from dataclasses import dataclass, field

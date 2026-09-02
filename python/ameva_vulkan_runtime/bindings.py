@@ -4,8 +4,6 @@ C ABI FFI Bindings for libameva_vulkan.so / ameva_vulkan.dll
 from __future__ import annotations
 
 import ctypes
-import os
-import sys
 from pathlib import Path
 from typing import Optional
 

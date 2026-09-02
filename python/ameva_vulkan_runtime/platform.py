@@ -19,7 +19,6 @@ termux-train, termux-vision, termux-llamacpp)의 공통 플랫폼 감지 코드�
 from __future__ import annotations
 
 import os
-import platform as _platform
 from typing import Optional
 
 __all__ = [
