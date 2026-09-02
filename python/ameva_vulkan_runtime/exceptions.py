@@ -1,9 +1,14 @@
-﻿"""
+"""
 AMEVA Vulkan Runtime Domain Exceptions
 """
 
 class AmevaRuntimeError(Exception):
     """Base exception for all AMEVA Vulkan runtime errors."""
+    pass
+
+
+class AmevaVulkanError(AmevaRuntimeError):
+    """Raised when native Vulkan FFI or driver execution fails."""
     pass
 
 

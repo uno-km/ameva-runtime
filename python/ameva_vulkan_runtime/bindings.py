@@ -9,6 +9,7 @@ from typing import Optional
 
 
 import logging
+from .exceptions import AmevaVulkanError
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +91,10 @@ class AmevaVulkanLib:
     def call_matmul_f32(self, a, b, c, m: int, k: int, n: int) -> int:
         """Invokes native Vulkan SGEMM kernel with contiguous bounds verification."""
         if not self.is_loaded() or not hasattr(self._lib, "ameva_matmul_f32"):
-            logger.warning("[ameva-vulkan-runtime] AmevaVulkanLib 미로드 상태: ameva_matmul_f32 FFI 심볼을 호출할 수 없습니다.")
-            return -1
+            raise AmevaVulkanError(
+                "[ameva-vulkan-runtime] AmevaVulkanLib 미로드 또는 ameva_matmul_f32 FFI 심볼 없음. "
+                "Vulkan ICD 설치 및 공유 라이브러리(libameva_vulkan.so / ameva_vulkan.dll) 빌드 상태를 확인하십시오."
+            )
 
         if m <= 0 or k <= 0 or n <= 0:
             raise ValueError(f"[ameva-vulkan-runtime] 행렬 차원은 0보다 커야 합니다 (m={m}, k={k}, n={n}).")

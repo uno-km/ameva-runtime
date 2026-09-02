@@ -41,13 +41,14 @@ class TestHandleLifecycleAndIntegrity(unittest.TestCase):
         lib = AmevaVulkanLib()
         self.assertFalse(lib.is_loaded())  # Expected on host without libameva_vulkan.so
         
-        # Calling SGEMM without native lib returns -1 gracefully
+        # Calling SGEMM without native lib raises AmevaVulkanError strictly
         import numpy as np
+        from ameva_vulkan_runtime.exceptions import AmevaVulkanError
         a = np.ones((2, 2), dtype=np.float32)
         b = np.ones((2, 2), dtype=np.float32)
         c = np.zeros((2, 2), dtype=np.float32)
-        ret = lib.call_matmul_f32(a, b, c, 2, 2, 2)
-        self.assertEqual(ret, -1)
+        with self.assertRaises(AmevaVulkanError):
+            lib.call_matmul_f32(a, b, c, 2, 2, 2)
 
     def test_context_engine_flags_truthfulness(self):
         """Verify engine flags return honest device configurations."""
