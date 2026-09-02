@@ -24,6 +24,7 @@ class VulkanContext:
         self._is_active = False
         self.execution_flags = {}
         self.profile_quirks = {}
+        self._bound_adapters: list = []
 
         self._initialize()
 
@@ -99,9 +100,33 @@ class VulkanContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def bind_adapter(self, adapter_cls, engine: Any = None):
+        """Binds an adapter to the target engine and registers it for lifecycle unbinding."""
+        report = self.doctor.run_self_test(verbose=False)
+        result = adapter_cls.bind(engine, report)
+        self._bound_adapters.append((adapter_cls, engine))
+        return result
+
+    def unbind_all(self) -> None:
+        """Unbinds all registered adapters and resets bound engine acceleration states."""
+        for adapter_cls, engine in self._bound_adapters:
+            try:
+                if hasattr(adapter_cls, "unbind"):
+                    adapter_cls.unbind(engine)
+            except Exception:
+                pass
+        self._bound_adapters.clear()
+
     def close(self):
-        """Release context resources and deactivate status."""
+        """Release context resources, unbind all registered adapters, and deactivate status."""
+        self.unbind_all()
         self._is_active = False
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def is_vulkan(self) -> bool:
         return self.backend_type == "vulkan"

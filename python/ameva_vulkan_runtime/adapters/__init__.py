@@ -127,7 +127,17 @@ class SttAdapter:
 
     @staticmethod
     def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-vulkan-runtime:SttAdapter] 바인딩 해제.")
+        logger.info("[ameva-vulkan-runtime:SttAdapter] 바인딩 해제 및 리소스 초기화.")
+        if engine is not None:
+            try:
+                if hasattr(engine, "config"):
+                    if hasattr(engine.config, "extra") and isinstance(engine.config.extra, dict):
+                        engine.config.extra.pop("gpu_layers", None)
+                        engine.config.extra.pop("use_vulkan", None)
+                if hasattr(engine, "set_vulkan"):
+                    engine.set_vulkan(False, gpu_layers=0)
+            except Exception as e:
+                logger.debug("[ameva-vulkan-runtime:SttAdapter] unbind 중 무시된 예외: %s", e)
 
 
 # ===========================================================================
@@ -200,7 +210,16 @@ class DiffusionAdapter:
 
     @staticmethod
     def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-vulkan-runtime:DiffusionAdapter] 바인딩 해제.")
+        logger.info("[ameva-vulkan-runtime:DiffusionAdapter] 바인딩 해제 및 리소스 초기화.")
+        if engine is not None:
+            try:
+                if hasattr(engine, "hw_profile"):
+                    engine.hw_profile.vulkan_available = False
+                    engine.hw_profile.vulkan_driver = None
+                if hasattr(engine, "set_vulkan_lib"):
+                    engine.set_vulkan_lib(None)
+            except Exception as e:
+                logger.debug("[ameva-vulkan-runtime:DiffusionAdapter] unbind 중 무시된 예외: %s", e)
 
 
 # ===========================================================================
@@ -276,7 +295,15 @@ class BitnetAdapter:
 
     @staticmethod
     def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-vulkan-runtime:BitnetAdapter] 바인딩 해제.")
+        logger.info("[ameva-vulkan-runtime:BitnetAdapter] 바인딩 해제 및 리소스 초기화.")
+        if engine is not None:
+            try:
+                if hasattr(engine, "config"):
+                    engine.config.n_gpu_layers = 0
+                    if hasattr(engine.config, "flash_attn"):
+                        engine.config.flash_attn = False
+            except Exception as e:
+                logger.debug("[ameva-vulkan-runtime:BitnetAdapter] unbind 중 무시된 예외: %s", e)
 
 
 # ===========================================================================
@@ -419,7 +446,34 @@ class LlamaCppAdapter:
 
     @staticmethod
     def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-vulkan-runtime:LlamaCppAdapter] 바인딩 해제.")
+        logger.info("[ameva-vulkan-runtime:LlamaCppAdapter] 바인딩 해제 및 리소스 초기화.")
+        if engine is not None:
+            try:
+                if isinstance(engine, dict):
+                    engine["ngl"] = 0
+                    engine["device"] = "cpu"
+                elif hasattr(engine, "config"):
+                    cfg = engine.config
+                    if isinstance(cfg, dict):
+                        cfg["ngl"] = 0
+                        cfg["n_gpu_layers"] = 0
+                        cfg["device"] = "cpu"
+                    else:
+                        if hasattr(cfg, "n_gpu_layers"):
+                            cfg.n_gpu_layers = 0
+                        if hasattr(cfg, "ngl"):
+                            cfg.ngl = 0
+                        if hasattr(cfg, "device"):
+                            cfg.device = "cpu"
+                elif hasattr(engine, "ngl") or hasattr(engine, "n_gpu_layers"):
+                    if hasattr(engine, "ngl"):
+                        engine.ngl = 0
+                    if hasattr(engine, "n_gpu_layers"):
+                        engine.n_gpu_layers = 0
+                    if hasattr(engine, "device"):
+                        engine.device = "cpu"
+            except Exception as e:
+                logger.debug("[ameva-vulkan-runtime:LlamaCppAdapter] unbind 중 무시된 예외: %s", e)
 
 
 # ===========================================================================
@@ -475,7 +529,15 @@ class TtsAdapter:
 
     @staticmethod
     def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-vulkan-runtime:TtsAdapter] 바인딩 해제.")
+        logger.info("[ameva-vulkan-runtime:TtsAdapter] 바인딩 해제 및 리소스 초기화.")
+        if engine is not None:
+            try:
+                if hasattr(engine, "use_vulkan"):
+                    engine.use_vulkan = False
+                if hasattr(engine, "fp16"):
+                    engine.fp16 = False
+            except Exception as e:
+                logger.debug("[ameva-vulkan-runtime:TtsAdapter] unbind 중 무시된 예외: %s", e)
 
 
 # ===========================================================================
@@ -557,4 +619,14 @@ class VisionAdapter:
 
     @staticmethod
     def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-vulkan-runtime:VisionAdapter] 바인딩 해제.")
+        logger.info("[ameva-vulkan-runtime:VisionAdapter] 바인딩 해제 및 리소스 초기화.")
+        if engine is not None:
+            try:
+                if hasattr(engine, "use_gpu"):
+                    engine.use_gpu = False
+                if hasattr(engine, "use_vulkan"):
+                    engine.use_vulkan = False
+                if hasattr(engine, "device"):
+                    engine.device = "cpu"
+            except Exception as e:
+                logger.debug("[ameva-vulkan-runtime:VisionAdapter] unbind 중 무시된 예외: %s", e)

@@ -123,6 +123,22 @@ class TestModalitiesIntegration(unittest.TestCase):
             # Test with dummy engine parameter
             adapter.unbind(SimpleNamespace())
 
+    def test_context_lifecycle_unbind_all(self):
+        """VulkanContext 컨텍스트 매니저 종료 시 등록된 모든 어댑터 자동 unbind 검증."""
+        from ameva_vulkan_runtime.core import VulkanContext
+        eng_llama = SimpleNamespace(config=RuntimeConfig())
+        eng_vis = SimpleNamespace(device="vulkan", use_gpu=True)
+
+        with VulkanContext(device_mode="auto") as ctx:
+            ctx.bind_adapter(LlamaCppAdapter, eng_llama)
+            ctx.bind_adapter(VisionAdapter, eng_vis)
+            self.assertEqual(len(ctx._bound_adapters), 2)
+
+        # Context closed -> unbind_all automatically executed
+        self.assertEqual(len(ctx._bound_adapters), 0)
+        self.assertEqual(eng_vis.device, "cpu")
+        self.assertFalse(eng_vis.use_gpu)
+
 
 if __name__ == "__main__":
     unittest.main()
