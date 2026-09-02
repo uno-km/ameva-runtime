@@ -58,6 +58,17 @@ all = [
     "termux-vision>=1.0.0",
 ]
 
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
+
 [tool.setuptools.package-data]
-"ameva_vulkan_runtime" = ["profiles/*.json"]
+"ameva_vulkan_runtime" = [
+    "profiles/*.json",
+    "lib/*.so",
+    "lib/*.dll",
+    "py.typed",
+]
 

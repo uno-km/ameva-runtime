@@ -421,8 +421,6 @@ class LlamaCppAdapter:
     def unbind(engine: Any = None) -> None:
         logger.info("[ameva-vulkan-runtime:LlamaCppAdapter] 바인딩 해제.")
 
-    attach = bind
-
 
 # ===========================================================================
 # TtsAdapter — termux-tts (Piper / VITS HiFi-GAN)

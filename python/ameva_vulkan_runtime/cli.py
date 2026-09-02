@@ -23,20 +23,23 @@ def cmd_doctor(args):
 
 
 def cmd_install(args):
-    """Auto-provisions native Bionic Vulkan binaries and verifies hardware."""
-    print("\n[PROVISIONING] Initializing AMEVA Vulkan Acceleration Engine...")
+    """Probes system Vulkan ICD, auto-configures hardware profiles, and provisions state cache."""
+    print("\n[PROVISIONING] Initializing AMEVA Vulkan Hardware & Driver Inspection...")
     t0 = time.perf_counter()
     doc = Doctor()
     report = doc.run_self_test(verbose=True)
     t1 = time.perf_counter()
 
     if report.overall_success or report.passed_stages >= 7:
-        print(f"[SUCCESS] AMEVA Vulkan Runtime verified in {(t1-t0)*1000:.2f} ms.")
-        print(f"  Target: {report.device_name} (Driver: {report.driver_version})")
-        print(f"  Single Loader Chain: {report.loader_path}")
+        print(f"\n[SUCCESS] AMEVA Vulkan Runtime hardware environment verified in {(t1-t0)*1000:.2f} ms.")
+        print(f"  Device Target       : {report.device_name} (Driver: {report.driver_version})")
+        print(f"  Vulkan Loader Chain : {report.loader_path}")
+        print(f"  State Cached At     : {doc.state_path}")
         sys.exit(0)
     else:
-        print(f"[WARNING] Vulkan probe uncertified. Active fallback backend: {report.recommended_backend}")
+        print(f"\n[WARNING] Vulkan hardware probe uncertified (Stages passed: {report.passed_stages}/{report.total_stages}).")
+        print(f"  Active Fallback Backend: {report.recommended_backend.upper()}")
+        print(f"  Tip: On Termux, ensure 'vulkan-loader-android' or '/system/lib64/libvulkan.so' is accessible.")
         sys.exit(1)
 
 
