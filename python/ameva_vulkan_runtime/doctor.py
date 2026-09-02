@@ -282,7 +282,14 @@ class Doctor:
             t0 = time.perf_counter()
             if loader_path_found:
                 try:
-                    vk_lib = ctypes.CDLL(loader_path_found)
+                    # RTLD_LAZY | RTLD_LOCAL prevents resolving unused EGL/GLES internal symbols on Exynos/Mali
+                    dlopen_mode = 1
+                    if hasattr(os, "RTLD_LAZY") and hasattr(os, "RTLD_LOCAL"):
+                        dlopen_mode = os.RTLD_LAZY | os.RTLD_LOCAL
+                    elif hasattr(ctypes, "RTLD_LAZY") and hasattr(ctypes, "RTLD_LOCAL"):
+                        dlopen_mode = ctypes.RTLD_LAZY | ctypes.RTLD_LOCAL
+
+                    vk_lib = ctypes.CDLL(loader_path_found, mode=dlopen_mode)
                     loader_path = loader_path_found
                     elapsed = (time.perf_counter() - t0) * 1000
                     s0 = StageReport(0, f"V0: {self.STAGE_NAMES[0]}", "PASS",
@@ -322,8 +329,8 @@ class Doctor:
                             queried_ver = ctypes.c_uint32(0)
                             if vk_lib.vkEnumerateInstanceVersion(ctypes.byref(queried_ver)) == VK_SUCCESS and queried_ver.value > 0:
                                 target_api_version = queried_ver.value
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning("[ameva-vulkan-runtime] V1: vkEnumerateInstanceVersion 쿼리 실패 (%s), Vulkan 1.1 fallback 명시적 적용", e)
 
                     app_info = VkApplicationInfo(
                         sType=VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -759,8 +766,12 @@ class Doctor:
                         or rec in ("vulkan", "vulkan_driver_only")
                         or data.get("passed_stages", 0) >= 7
                     )
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                logger.warning("[ameva-vulkan-runtime] state.json 캐시 데이터 손상 감지, 재진단 수행: %s", e)
+            except OSError as e:
+                logger.warning("[ameva-vulkan-runtime] state.json 파일 I/O 또는 권한 오류, 재진단 수행: %s", e)
             except Exception as e:
-                logger.warning("[ameva-vulkan-runtime] state.json 읽기 실패, 재진단 수행: %s", e)
+                logger.warning("[ameva-vulkan-runtime] state.json 읽기 중 예기치 않은 오류, 재진단 수행: %s", e)
         report = self.run_self_test(verbose=False)
         return bool(
             report.overall_success
@@ -769,7 +780,7 @@ class Doctor:
         )
 
     def quick_probe_device(self) -> Optional[str]:
-        """빠른 하드웨어 디바이스 이름 반환."""
+        """빠른 하드웨어 디바이스 이름 반환 (캐시 검증 및 예외 추적 보장)."""
         if self.state_path.exists():
             try:
                 data = json.loads(self.state_path.read_text(encoding="utf-8"))
@@ -778,8 +789,12 @@ class Doctor:
                     dev_name = data.get("device_name")
                     if dev_name and dev_name != "Unknown":
                         return dev_name
-            except Exception:
-                pass
+            except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                logger.warning("[ameva-vulkan-runtime] state.json 캐시 데이터 손상 감지, 재진단으로 전환: %s", e)
+            except OSError as e:
+                logger.warning("[ameva-vulkan-runtime] state.json 파일 I/O 또는 권한 오류, 재진단으로 전환: %s", e)
+            except Exception as e:
+                logger.warning("[ameva-vulkan-runtime] 디바이스 빠른 탐색 중 예기치 않은 오류, 재진단으로 전환: %s", e)
         report = self.run_self_test(verbose=False)
         return report.device_name if report.device_name != "Unknown" else None
 

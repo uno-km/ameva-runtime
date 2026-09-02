@@ -68,23 +68,37 @@ def cmd_benchmark(args):
     for name, meta in benchmarks:
         print(f"  - {name:<26} -> Backend: {meta.backend:<9} | Status: {meta.status}")
 
-    # 2. Run Real Micro-GEMM Latency Measurement (256x256)
+    # 2. Run Micro-GEMM Latency Measurement (256x256)
     import numpy as np
+    from .bindings import AmevaVulkanLib
+
     M, K, N = 256, 256, 256
     a = np.ones((M, K), dtype=np.float32)
     b = np.full((K, N), 0.5, dtype=np.float32)
-    
+    c = np.zeros((M, N), dtype=np.float32)
+
+    vlib = AmevaVulkanLib()
+    used_engine = "CPU_NUMPY_REFERENCE (Fallback)"
+
     t_start = time.perf_counter()
-    c = np.matmul(a, b)
+    if vlib.is_loaded():
+        res = vlib.call_matmul_f32(a, b, c, M, K, N)
+        if res == 0:
+            used_engine = f"NATIVE_C_API ({ctx.backend_type.upper()})"
+        else:
+            c = np.matmul(a, b)
+    else:
+        c = np.matmul(a, b)
     t_end = time.perf_counter()
-    
+
     elapsed_ms = (t_end - t_start) * 1000.0
     ops = 2.0 * M * K * N
     gflops = (ops / (elapsed_ms * 1e6)) if elapsed_ms > 0 else 0.0
 
     print("\n" + "-" * 60)
     print("  Micro-GEMM (256x256):")
-    print(f"  - Compute Engine:   {ctx.backend_type.upper()}")
+    print(f"  - Active Context:   {ctx.backend_type.upper()} ({ctx.device_name})")
+    print(f"  - Executed Kernel:  {used_engine}")
     print(f"  - Elapsed Time:     {elapsed_ms:.3f} ms")
     print(f"  - Throughput:       {gflops:.2f} GFLOPS")
     print(f"  - Checksum (c[0,0]): {c[0,0]:.1f} (Expected: {K * 0.5:.1f})")

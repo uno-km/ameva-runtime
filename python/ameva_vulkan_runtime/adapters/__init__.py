@@ -320,21 +320,43 @@ class LlamaCppAdapter:
 
             if engine is not None:
                 try:
-                    # engine 이 dict 형 config 인 경우
+                    # 1) engine 이 dict 형 config 인 경우
                     if isinstance(engine, dict):
                         engine.setdefault("ngl", ngl)
                         engine["device"] = "vulkan"
                         engine.setdefault("flash_attn", True)
                         engine.setdefault("threads", big_cores)
-                    # engine 이 객체 형 config 인 경우
-                    elif hasattr(engine, "ngl"):
-                        if getattr(engine, "ngl", 0) == 0:
+                    # 2) engine 이 engine.config (RuntimeConfig / EngineConfig) 객체를 가진 경우
+                    elif hasattr(engine, "config"):
+                        cfg = engine.config
+                        if isinstance(cfg, dict):
+                            cfg.setdefault("ngl", ngl)
+                            cfg.setdefault("n_gpu_layers", ngl)
+                            cfg["device"] = "vulkan"
+                            cfg.setdefault("flash_attn", True)
+                            cfg.setdefault("threads", big_cores)
+                        else:
+                            if hasattr(cfg, "n_gpu_layers"):
+                                cfg.n_gpu_layers = ngl
+                            if hasattr(cfg, "ngl"):
+                                cfg.ngl = ngl
+                            if hasattr(cfg, "device"):
+                                cfg.device = "vulkan"
+                            if hasattr(cfg, "flash_attn"):
+                                cfg.flash_attn = True
+                            if hasattr(cfg, "threads") and getattr(cfg, "threads", 0) == 0:
+                                cfg.threads = big_cores
+                    # 3) engine 이 단독 객체 형 config 인 경우
+                    elif hasattr(engine, "ngl") or hasattr(engine, "n_gpu_layers"):
+                        if hasattr(engine, "ngl") and getattr(engine, "ngl", 0) == 0:
                             engine.ngl = ngl
+                        if hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", 0) == 0:
+                            engine.n_gpu_layers = ngl
                         if hasattr(engine, "device"):
                             engine.device = "vulkan"
                         if hasattr(engine, "threads") and getattr(engine, "threads", 0) == 0:
                             engine.threads = big_cores
-                    # engine 이 subprocess cmd list 인 경우
+                    # 4) engine 이 subprocess cmd list 인 경우
                     elif isinstance(engine, list):
                         if "-ngl" not in engine and "--n-gpu-layers" not in engine:
                             engine.extend(["-ngl", str(ngl)])
@@ -367,8 +389,24 @@ class LlamaCppAdapter:
                 if isinstance(engine, dict):
                     engine["ngl"] = 0
                     engine.setdefault("threads", big_cores)
-                elif hasattr(engine, "ngl"):
-                    engine.ngl = 0
+                elif hasattr(engine, "config"):
+                    cfg = engine.config
+                    if isinstance(cfg, dict):
+                        cfg["ngl"] = 0
+                        cfg["n_gpu_layers"] = 0
+                        cfg.setdefault("threads", big_cores)
+                    else:
+                        if hasattr(cfg, "n_gpu_layers"):
+                            cfg.n_gpu_layers = 0
+                        if hasattr(cfg, "ngl"):
+                            cfg.ngl = 0
+                        if hasattr(cfg, "threads"):
+                            cfg.threads = big_cores
+                elif hasattr(engine, "ngl") or hasattr(engine, "n_gpu_layers"):
+                    if hasattr(engine, "ngl"):
+                        engine.ngl = 0
+                    if hasattr(engine, "n_gpu_layers"):
+                        engine.n_gpu_layers = 0
                     if hasattr(engine, "threads"):
                         engine.threads = big_cores
                 elif isinstance(engine, list):

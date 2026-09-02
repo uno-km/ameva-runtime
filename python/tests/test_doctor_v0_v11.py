@@ -76,6 +76,39 @@ class TestDoctorV0V11(unittest.TestCase):
         self.assertTrue(self.doc.state_path.exists(),
                         "state.json 이 생성되지 않았습니다.")
 
+    def test_quick_probe_device_corrupted_cache_fallback(self):
+        """state.json 캐시 파일이 0바이트 또는 손상된 JSON일 때 예외를 안전하게 격리하고 fallback함을 검증."""
+        self.doc.state_path.parent.mkdir(parents=True, exist_ok=True)
+        # 1. 0-byte corrupted cache
+        self.doc.state_path.write_text("", encoding="utf-8")
+        dev1 = self.doc.quick_probe_device()
+        self.assertTrue(dev1 is None or isinstance(dev1, str))
+        probe1 = self.doc.quick_probe()
+        self.assertIsInstance(probe1, bool)
+
+        # 2. Malformed JSON
+        self.doc.state_path.write_text("{ broken json ...", encoding="utf-8")
+        dev2 = self.doc.quick_probe_device()
+        self.assertTrue(dev2 is None or isinstance(dev2, str))
+        probe2 = self.doc.quick_probe()
+        self.assertIsInstance(probe2, bool)
+
+    def test_quick_probe_device_valid_cache(self):
+        """유효한 state.json 캐시가 존재할 때 빠른 디바이스 이름을 반환함을 검증."""
+        import json, time
+        self.doc.state_path.parent.mkdir(parents=True, exist_ok=True)
+        valid_data = {
+            "overall_success": True,
+            "recommended_backend": "vulkan",
+            "passed_stages": 12,
+            "device_name": "Adreno (TM) 650 Test Device",
+            "timestamp": time.time()
+        }
+        self.doc.state_path.write_text(json.dumps(valid_data), encoding="utf-8")
+        dev = self.doc.quick_probe_device()
+        self.assertEqual(dev, "Adreno (TM) 650 Test Device")
+        self.assertTrue(self.doc.quick_probe())
+
 
 if __name__ == "__main__":
     unittest.main()

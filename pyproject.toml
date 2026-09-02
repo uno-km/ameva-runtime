@@ -57,3 +57,7 @@ all = [
     "termux-tts>=1.0.0",
     "termux-vision>=1.0.0",
 ]
+
+[tool.setuptools.package-data]
+"ameva_vulkan_runtime" = ["profiles/*.json"]
+

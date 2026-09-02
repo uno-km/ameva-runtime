@@ -1,4 +1,4 @@
-﻿#include "vulkan_loader.h"
+#include "vulkan_loader.h"
 #include <iostream>
 #include <vector>
 
@@ -9,7 +9,7 @@
 #define DLCLOSE(handle) FreeLibrary((HMODULE)handle)
 #else
 #include <dlfcn.h>
-#define DLOPEN(path) dlopen(path, RTLD_NOW | RTLD_LOCAL)
+#define DLOPEN(path) dlopen(path, RTLD_LAZY | RTLD_LOCAL)
 #define DLSYM(handle, name) dlsym(handle, name)
 #define DLCLOSE(handle) dlclose(handle)
 #endif

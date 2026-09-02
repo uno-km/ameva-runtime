@@ -49,7 +49,7 @@ def load_native_lib() -> Optional[ctypes.CDLL]:
                 try:
                     return ctypes.CDLL(str(p))
                 except Exception as e:
-                    logger.debug("Failed to load %s: %s", p, e)
+                    logger.warning("[ameva-vulkan-runtime] 네이티브 라이브러리 후보 '%s' dlopen 실패: %s", p, e)
     return None
 
 
@@ -61,7 +61,7 @@ class AmevaVulkanLib:
             try:
                 self._lib = ctypes.CDLL(str(lib_path))
             except Exception as e:
-                logger.debug("Failed to load specified library '%s': %s", lib_path, e)
+                logger.error("[ameva-vulkan-runtime] 지정된 네이티브 라이브러리 '%s' 로드 실패: %s", lib_path, e)
                 self._lib = None
         else:
             self._lib = load_native_lib()
@@ -87,39 +87,36 @@ class AmevaVulkanLib:
                 ]
                 self._lib.ameva_matmul_f32.restype = ctypes.c_int32
         except Exception as e:
-            logger.debug("Failed to register FFI signatures: %s", e)
+            logger.warning("[ameva-vulkan-runtime] FFI 함수 시그니처 등록 실패: %s", e)
 
     def call_matmul_f32(self, a, b, c, m: int, k: int, n: int) -> int:
         """Invokes native Vulkan SGEMM kernel with contiguous bounds verification."""
         if not self.is_loaded() or not hasattr(self._lib, "ameva_matmul_f32"):
-            logger.debug("AmevaVulkanLib is not loaded or ameva_matmul_f32 symbol missing.")
+            logger.warning("[ameva-vulkan-runtime] AmevaVulkanLib 미로드 상태: ameva_matmul_f32 FFI 심볼을 호출할 수 없습니다.")
             return -1
+
         if m <= 0 or k <= 0 or n <= 0:
-            logger.error("Matrix dimensions must be strictly positive (m=%d, k=%d, n=%d).", m, k, n)
-            return -1
+            raise ValueError(f"[ameva-vulkan-runtime] 행렬 차원은 0보다 커야 합니다 (m={m}, k={k}, n={n}).")
+
+        import numpy as np
+        a_contig = np.ascontiguousarray(a, dtype=np.float32)
+        b_contig = np.ascontiguousarray(b, dtype=np.float32)
+        if not isinstance(c, np.ndarray) or c.dtype != np.float32 or not c.flags['C_CONTIGUOUS']:
+            raise TypeError("[ameva-vulkan-runtime] 목적지 행렬 'c'는 C-contiguous float32 numpy.ndarray 여야 합니다.")
+
+        # Strict buffer bounds check: prevent buffer overflow (SIGSEGV)
+        if a_contig.size < m * k:
+            raise BufferError(f"[ameva-vulkan-runtime] 행렬 'a' 버퍼 크기 부족: {a_contig.size} < {m * k}")
+        if b_contig.size < k * n:
+            raise BufferError(f"[ameva-vulkan-runtime] 행렬 'b' 버퍼 크기 부족: {b_contig.size} < {k * n}")
+        if c.size < m * n:
+            raise BufferError(f"[ameva-vulkan-runtime] 행렬 'c' 목적지 버퍼 크기 부족: {c.size} < {m * n}")
+
         try:
-            import numpy as np
-            a_contig = np.ascontiguousarray(a, dtype=np.float32)
-            b_contig = np.ascontiguousarray(b, dtype=np.float32)
-            if not isinstance(c, np.ndarray) or c.dtype != np.float32 or not c.flags['C_CONTIGUOUS']:
-                logger.error("Destination matrix 'c' must be contiguous float32 ndarray.")
-                return -1
-
-            # Strict buffer bounds check: prevent buffer overflow (SIGSEGV)
-            if a_contig.size < m * k:
-                logger.error("Matrix 'a' size (%d) is smaller than required (%d).", a_contig.size, m * k)
-                return -1
-            if b_contig.size < k * n:
-                logger.error("Matrix 'b' size (%d) is smaller than required (%d).", b_contig.size, k * n)
-                return -1
-            if c.size < m * n:
-                logger.error("Matrix 'c' size (%d) is smaller than required (%d).", c.size, m * n)
-                return -1
-
             a_ptr = a_contig.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
             b_ptr = b_contig.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
             c_ptr = c.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
             return int(self._lib.ameva_matmul_f32(a_ptr, b_ptr, c_ptr, m, k, n))
         except Exception as exc:
-            logger.error("Exception in call_matmul_f32 FFI execution: %s", exc)
-            return -1
+            logger.error("[ameva-vulkan-runtime] C FFI ameva_matmul_f32 실행 중 치명적 예외: %s", exc)
+            raise RuntimeError(f"[ameva-vulkan-runtime] Native SGEMM 실행 실패: {exc}") from exc
