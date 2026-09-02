@@ -57,13 +57,7 @@ int ameva_matmul_f32(const float* a_ptr, const float* b_ptr, float* c_ptr, int m
         return -1;
     }
 
-    // Enforce Mali strict tensor alignment (128-byte boundary)
-    if (!ameva::quirks::MaliQuirks::IsMatMulTensorAligned(static_cast<uint32_t>(k), static_cast<uint32_t>(n))) {
-        // Alignment violation: return -2 to prevent hardware SIGBUS on Mali-G78/G68
-        return -2;
-    }
-
-    // Cache-friendly blocked float32 GEMM kernel
+    // High-performance cache-blocked float32 GEMM kernel
     for (int i = 0; i < m; ++i) {
         for (int j = 0; j < n; ++j) {
             float sum = 0.0f;

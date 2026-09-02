@@ -1,9 +1,10 @@
-﻿"""
+"""
 DiffusionAdapter — termux-diffusion (stable-diffusion.cpp) Vulkan Acceleration Adapter
 """
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from ..doctor import DiagnosticReport
@@ -12,6 +13,13 @@ from ..protocol import BindingResult
 from .base import _is_vulkan_report, _make_cpu_fallback
 
 logger = logging.getLogger("ameva_vulkan_runtime.adapters.diffusion")
+
+
+@dataclass
+class VulkanDriverInfo:
+    """Standardized Vulkan driver handle for termux-diffusion."""
+    library_path: str
+    usable: bool = True
 
 
 class DiffusionAdapter:
@@ -41,10 +49,10 @@ class DiffusionAdapter:
                 try:
                     if hasattr(engine, "hw_profile"):
                         engine.hw_profile.vulkan_available = True
-                        engine.hw_profile.vulkan_driver = type("GD", (), {
-                            "library_path": report.loader_path,
-                            "usable": True,
-                        })()
+                        engine.hw_profile.vulkan_driver = VulkanDriverInfo(
+                            library_path=report.loader_path,
+                            usable=True,
+                        )
                         logger.info(
                             "[ameva-vulkan-runtime:DiffusionAdapter] hw_profile.vulkan_driver 패치 완료: %s",
                             report.loader_path

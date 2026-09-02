@@ -1,4 +1,4 @@
-﻿"""
+"""
 SttAdapter — termux-stt (whisper.cpp / sherpa-onnx) Vulkan Acceleration Adapter
 """
 from __future__ import annotations
@@ -53,7 +53,6 @@ class SttAdapter:
             config.update({
                 "backend": "vulkan",
                 "encoder_fp16": True,
-                "rtf_target": 0.28,
                 "gpu_layers": ngl,
                 "vulkan_flag": True,
             })
@@ -91,7 +90,6 @@ class SttAdapter:
             cpu_cores = os.cpu_count() or 8
             optimal_threads = max(1, cpu_cores // 2)
             config["threads"] = optimal_threads
-            config["rtf_target"] = 0.80
             if engine is not None and hasattr(engine, "threads"):
                 engine.threads = optimal_threads
             return _make_cpu_fallback(SttAdapter.module_name, report, config)

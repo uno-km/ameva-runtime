@@ -66,7 +66,7 @@ class TestModalitiesIntegration(unittest.TestCase):
         result = SttAdapter.bind(engine_obj, self.report)
         self._assert_binding(result, "termux-stt")
         if self.is_vulkan:
-            self.assertEqual(engine_obj.config.extra.get("gpu_layers"), 33)
+            self.assertEqual(engine_obj.config.extra.get("gpu_layers"), 4)
             self.assertTrue(engine_obj.config.extra.get("use_vulkan"))
         else:
             self.assertGreater(engine_obj.threads, 0)

@@ -43,8 +43,6 @@ class VulkanContext:
             self.profile_quirks = self.doctor.load_hardware_profile(self.device_name, self.vendor_id)
             self.execution_flags = {
                 "use_gpu": True,
-                "gpu_layers": 99,
-                "n_gpu_layers": 33,
                 "backend": "vulkan",
                 "threads": os.cpu_count() or 4
             }
@@ -57,8 +55,6 @@ class VulkanContext:
             self.profile_quirks = {}
             self.execution_flags = {
                 "use_gpu": False,
-                "gpu_layers": 0,
-                "n_gpu_layers": 0,
                 "backend": "cpu_neon",
                 "threads": os.cpu_count() or 4
             }
@@ -72,8 +68,6 @@ class VulkanContext:
                 self.device_name = dev_name if dev_name else "Generic Vulkan GPU Accelerator"
                 self.execution_flags = {
                     "use_gpu": True,
-                    "gpu_layers": 99,
-                    "n_gpu_layers": 33,
                     "backend": "vulkan",
                     "threads": os.cpu_count() or 4
                 }
@@ -83,8 +77,6 @@ class VulkanContext:
                 self.device_name = "ARM64 NEON Vector CPU Engine (Auto-Recovered)"
                 self.execution_flags = {
                     "use_gpu": False,
-                    "gpu_layers": 0,
-                    "n_gpu_layers": 0,
                     "backend": "cpu_neon",
                     "threads": os.cpu_count() or 4
                 }
@@ -113,8 +105,9 @@ class VulkanContext:
             try:
                 if hasattr(adapter_cls, "unbind"):
                     adapter_cls.unbind(engine)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger("ameva-vulkan-runtime").debug("[VulkanContext] unbind_all exception: %s", e)
         self._bound_adapters.clear()
 
     def close(self):
@@ -125,28 +118,42 @@ class VulkanContext:
     def __del__(self):
         try:
             self.close()
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.getLogger("ameva-vulkan-runtime").debug("[VulkanContext] __del__ exception: %s", e)
 
     def is_vulkan(self) -> bool:
         return self.backend_type == "vulkan"
 
-    def to_engine_flags(self, engine_name: str = "default") -> dict:
-        """Helper to extract engine-specific accelerator execution flags."""
+    def to_engine_flags(self, engine_name: str = "default", engine: Any = None) -> dict:
+        """Helper to extract engine-specific accelerator execution flags with dynamic layer calculation."""
         name = (engine_name or "").lower()
         base_threads = os.cpu_count() or 4
 
         if name in ("whisper", "stt"):
+            from .adapters.stt import _calculate_whisper_layers
+            layers = _calculate_whisper_layers(engine) if self.is_gpu else 0
             return {
                 "use_gpu": self.is_gpu,
-                "gpu_layers": 33 if self.is_gpu else 0,
+                "gpu_layers": layers,
                 "threads": max(1, base_threads // 2) if not self.is_gpu else 2,
                 "backend": self.backend_type,
                 "device": "vulkan" if self.is_gpu else "cpu",
             }
-        elif name in ("bitnet", "llm", "llama", "llamacpp"):
+        elif name in ("bitnet", "llm"):
+            from .adapters.bitnet import _calculate_bitnet_layers
+            layers = _calculate_bitnet_layers(engine) if self.is_gpu else 0
             return {
-                "n_gpu_layers": 33 if self.is_gpu else 0,
+                "n_gpu_layers": layers,
+                "threads": base_threads,
+                "backend": self.backend_type,
+                "device": "vulkan" if self.is_gpu else "cpu",
+            }
+        elif name in ("llama", "llamacpp"):
+            from .adapters.llamacpp import _calculate_llama_layers
+            layers = _calculate_llama_layers(engine) if self.is_gpu else 0
+            return {
+                "n_gpu_layers": layers,
                 "threads": base_threads,
                 "backend": self.backend_type,
                 "device": "vulkan" if self.is_gpu else "cpu",
@@ -172,13 +179,18 @@ class VulkanContext:
             }
         return dict(self.execution_flags)
 
-    def allocate_buffer(self, size_bytes: int) -> int:
-        """Memory Budget Validator: Validates requested buffer size against memory budget limit threshold."""
+    def validate_buffer_budget(self, size_bytes: int) -> bool:
+        """Validates requested buffer size against configured memory budget threshold."""
         if size_bytes > self.memory_limit_mb * 1024 * 1024:
             raise BufferAllocationError(
                 f"Requested buffer size ({size_bytes / (1024*1024):.2f} MB) exceeds configured memory limit ({self.memory_limit_mb} MB)."
             )
-        return size_bytes
+        return True
+
+    def allocate_buffer(self, size_bytes: int) -> bytearray:
+        """Allocates a real host memory buffer backed by budget validation."""
+        self.validate_buffer_budget(size_bytes)
+        return bytearray(size_bytes)
 
 
 def create_context(device: str = "auto", memory_limit_mb: int = 1024) -> VulkanContext:

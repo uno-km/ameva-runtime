@@ -1,4 +1,4 @@
-﻿"""
+"""
 TtsAdapter — termux-tts (Piper / VITS HiFi-GAN) Vulkan Acceleration Adapter
 """
 from __future__ import annotations
@@ -32,7 +32,6 @@ class TtsAdapter:
             config.update({
                 "backend": "vulkan",
                 "transposed_conv_vulkan": True,
-                "latency_ms_target": 38.5,
                 "fp16_vocoder": True,
             })
 
@@ -58,7 +57,6 @@ class TtsAdapter:
                 config=config, status="BOUND",
             )
         else:
-            config["latency_ms_target"] = 115.0
             return _make_cpu_fallback(TtsAdapter.module_name, report, config)
 
     @staticmethod
