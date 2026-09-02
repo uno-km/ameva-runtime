@@ -537,6 +537,7 @@ class Doctor:
                         enabledExtensionCount=0, ppEnabledExtensionNames=None,
                         pEnabledFeatures=None,
                     )
+                    _keepalive_ptrs = (priority, qci, dci)  # Prevent GC from reclaiming Ctypes pointer memory
                     result = vk_lib.vkCreateDevice(
                         phys_device, ctypes.byref(dci), None, ctypes.byref(logical_device)
                     )
@@ -662,7 +663,7 @@ class Doctor:
                         elapsed_v9 = (time.perf_counter() - t0) * 1000
                         if ret == 0:
                             s9 = StageReport(9, f"V9: {self.STAGE_NAMES[9]}", "PASS", elapsed_v9,
-                                             f"Dispatched 64x64 SGEMM compute kernel via GPU queue in {elapsed_v9:.2f}ms")
+                                             f"Executed 64x64 SGEMM native compute kernel via FFI in {elapsed_v9:.2f}ms")
                             passed += 1
                             self._print_stage(s9, verbose)
                             stages.append(s9)

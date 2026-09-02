@@ -3,7 +3,7 @@
 #include "../quirks/mali_quirks.h"
 #include <cstring>
 
-static const char* kAmevaVersion = "1.0.0";
+static const char* kAmevaVersion = "1.2.0";
 
 int ameva_run_diagnostic(bool verbose, AmevaDiagnosticResult* out_result) {
     if (!out_result) return -1;
