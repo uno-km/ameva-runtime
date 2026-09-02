@@ -1,8 +1,8 @@
 name: AMEVA-Vulkan-Runtime
 package_name_pypi: ameva-vulkan-runtime
 package_name_npm: ameva-vulkan-runtime
-version: v1.1.0
-release_name: Production Release
+version: v1.2.0
+release_name: Hardened Production Release
 license: Apache-2.0
 platform: Android ARM64 / Snapdragon & Mali & Xclipse
 github_repo_url: https://github.com/uno-km/ameva-vulkan-runtime
@@ -80,10 +80,20 @@ code_example_js: 'import { Doctor, createContext } from "ameva-vulkan-runtime";
 
   console.log(`Vulkan Context Ready on ${ctx.deviceName}`);'
 changelog:
+- version: v1.2.0
+  date: '2026-09-02'
+  title: Hardened Fail-Fast & Complete 12-Stage Diagnostic Suite
+  type: Production Release (Latest)
+  changes:
+  - 'Real GPU Pipeline Verification: Integrated C ABI FFI SGEMM kernel dispatch and numeric checksum ($c[0,0]=32.0$) across Doctor stages V7~V11.'
+  - 'RAII Lifecycle Adapter Cleanup: Automated unbind_all() across 6 modality adapters on context exit preventing resource and handle leaks.'
+  - 'Exynos 2100 RTLD_LAZY Isolation: Resolved Bionic GLESv3 symbol linking failure on Samsung One UI devices.'
+  - 'Strict Fail-Fast Exception Architecture: Replaced silent -1 return codes with explicit AmevaVulkanError exceptions preserving stack traces.'
+  - 'Zero-Drift Hardware Profile Packaging: Registered validated-vulkan-profiles.json in package-data with bidirectional fuzzy matching.'
 - version: v1.1.0
   date: '2026-09-01'
   title: Galaxy A35 Validation & CTypes Pointer Patch
-  type: Production Release (Latest)
+  type: Maintenance Release
   changes:
   - 'Real-Device Galaxy A35 Validation: Certified 12-stage hardware diagnostic hierarchy
     and Vulkan 1.4 API negotiation on Samsung Galaxy A35 5G (Exynos 1380, ARM Mali-G68

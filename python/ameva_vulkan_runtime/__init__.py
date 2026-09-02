@@ -1,7 +1,8 @@
 """
 AMEVA Unified Vulkan Acceleration Runtime & SDK
 """
-__version__ = "1.1.0"
+__version__ = "1.2.0"
+__author__ = "Eunho Kim <contact@uno-km.com>"
 
 from .core import VulkanContext, create_context, get_or_create_context
 from .doctor import Doctor, DiagnosticReport, StageReport

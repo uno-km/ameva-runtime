@@ -33,11 +33,12 @@ Provides a single, zero-hardcoded C++20 Vulkan Hardware Abstraction Layer (HAL) 
 - [Official Documentation & API Reference](https://uno-km.vercel.app/lib/ameva-vulkan-runtime/)
 - [GitHub Repository](https://github.com/uno-km/ameva-vulkan-runtime)
 
-## Release Notes (v1.1.0)
-- **Real-Device Galaxy A35 Validation**: Certified 12-stage hardware diagnostic hierarchy and Vulkan 1.4 API negotiation on Samsung Galaxy A35 5G (Exynos 1380, ARM Mali-G68 GPU).
-- **CTypes Struct Pointer Patch**: Corrected struct pointer allocations to `ctypes.pointer` to fix `TypeError: expected LP_* instance, got _ctypes.CArgObject` in `doctor.py`.
-- **Dynamic Topology Thread Optimization**: Added CPU topology inspection in `LlamaCppAdapter` targeting big-core clusters (`-t 4`) on mobile octa-core SoCs.
-- **Strict Vulkan 3-Tier Execution Mode**: Fail-Fast protection for explicit `--device vulkan` requests without silent CPU masking.
+## Release Notes (v1.2.0)
+- **Complete 12-Stage Native Pipeline Execution**: Integrated C ABI FFI SGEMM compute kernel queue dispatch, deterministic numeric checksum ($c[0,0]=32.0$), and burst stress testing across Doctor stages V7~V11.
+- **RAII Context Lifecycle Adapter Registry**: Automated `unbind_all()` across all 6 modality adapters upon `VulkanContext` close/exit preventing memory and hardware handle leaks.
+- **Strict Domain Exception Hierarchy**: Added `AmevaVulkanError` for explicit fail-fast FFI execution errors preserving stack traces.
+- **Exynos 2100 Bionic Symbol Isolation**: Applied `RTLD_LAZY | RTLD_LOCAL` loader isolation to prevent `_ZN7android18egl_get_connectionEv` crashes on Samsung One UI devices.
+- **Zero-Drift Hardware Profile Packaging**: Added `validated-vulkan-profiles.json` to package-data and `MANIFEST.in` with bidirectional fuzzy device/GPU matching.
 
 ## License
 Apache-2.0 License. Copyright (c) 2026 Eunho Kim (@uno-km).

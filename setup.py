@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="ameva-vulkan-runtime",
-    version="1.1.0",
+    version="1.2.0",
     description="Unified Cross-Modal Vulkan GPU Acceleration Runtime & HAL for Mobile Android",
     long_description=open("README.pypi.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
