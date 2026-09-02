@@ -114,6 +114,15 @@ class TestModalitiesIntegration(unittest.TestCase):
         result = VisionAdapter.bind(vision_engine, self.report)
         self._assert_binding(result, "termux-vision")
 
+    def test_all_adapters_unbind(self):
+        """모든 6대 어댑터의 unbind 메서드 호출 및 무결성 검증."""
+        adapters = [SttAdapter, DiffusionAdapter, BitnetAdapter, LlamaCppAdapter, TtsAdapter, VisionAdapter]
+        for adapter in adapters:
+            # Test static unbind
+            adapter.unbind()
+            # Test with dummy engine parameter
+            adapter.unbind(SimpleNamespace())
+
 
 if __name__ == "__main__":
     unittest.main()

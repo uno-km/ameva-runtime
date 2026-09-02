@@ -125,7 +125,8 @@ class SttAdapter:
                 engine.threads = optimal_threads
             return _make_cpu_fallback(SttAdapter.module_name, report, config)
 
-    def unbind(self) -> None:
+    @staticmethod
+    def unbind(engine: Any = None) -> None:
         logger.info("[ameva-vulkan-runtime:SttAdapter] 바인딩 해제.")
 
 
@@ -197,7 +198,8 @@ class DiffusionAdapter:
             config["offload_to_cpu"] = True
             return _make_cpu_fallback(DiffusionAdapter.module_name, report, config)
 
-    def unbind(self) -> None:
+    @staticmethod
+    def unbind(engine: Any = None) -> None:
         logger.info("[ameva-vulkan-runtime:DiffusionAdapter] 바인딩 해제.")
 
 
@@ -272,7 +274,8 @@ class BitnetAdapter:
                 engine.config.n_gpu_layers = 0
             return _make_cpu_fallback(BitnetAdapter.module_name, report, config)
 
-    def unbind(self) -> None:
+    @staticmethod
+    def unbind(engine: Any = None) -> None:
         logger.info("[ameva-vulkan-runtime:BitnetAdapter] 바인딩 해제.")
 
 
@@ -414,7 +417,8 @@ class LlamaCppAdapter:
                         engine.extend(["-t", str(big_cores)])
             return _make_cpu_fallback(LlamaCppAdapter.module_name, report, config)
 
-    def unbind(self) -> None:
+    @staticmethod
+    def unbind(engine: Any = None) -> None:
         logger.info("[ameva-vulkan-runtime:LlamaCppAdapter] 바인딩 해제.")
 
     attach = bind
@@ -471,7 +475,8 @@ class TtsAdapter:
             config["latency_ms_target"] = 115.0
             return _make_cpu_fallback(TtsAdapter.module_name, report, config)
 
-    def unbind(self) -> None:
+    @staticmethod
+    def unbind(engine: Any = None) -> None:
         logger.info("[ameva-vulkan-runtime:TtsAdapter] 바인딩 해제.")
 
 
@@ -552,5 +557,6 @@ class VisionAdapter:
             config["vit_acceleration"] = False
             return _make_cpu_fallback(VisionAdapter.module_name, report, config)
 
-    def unbind(self) -> None:
+    @staticmethod
+    def unbind(engine: Any = None) -> None:
         logger.info("[ameva-vulkan-runtime:VisionAdapter] 바인딩 해제.")
