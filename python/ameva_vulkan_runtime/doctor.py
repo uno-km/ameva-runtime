@@ -653,9 +653,9 @@ class Doctor:
                         self._print_stage(s8, verbose)
                         stages.append(s8)
 
-                        # V9: Command Buffer Dispatch (SGEMM execution)
+                        # V9: Command Buffer Dispatch (SGEMM execution with Mali 128-byte alignment)
                         t0 = time.perf_counter()
-                        M, K, N = 64, 64, 64
+                        M, K, N = 128, 128, 128
                         a = np.ones((M, K), dtype=np.float32)
                         b = np.full((K, N), 0.5, dtype=np.float32)
                         c = np.zeros((M, N), dtype=np.float32)
@@ -663,14 +663,14 @@ class Doctor:
                         elapsed_v9 = (time.perf_counter() - t0) * 1000
                         if ret == 0:
                             s9 = StageReport(9, f"V9: {self.STAGE_NAMES[9]}", "PASS", elapsed_v9,
-                                             f"Executed 64x64 SGEMM native compute kernel via FFI in {elapsed_v9:.2f}ms")
+                                             f"Executed 128x128 SGEMM native compute kernel via FFI in {elapsed_v9:.2f}ms")
                             passed += 1
                             self._print_stage(s9, verbose)
                             stages.append(s9)
 
                             # V10: Numeric Precision Checksum Verification
                             t0 = time.perf_counter()
-                            expected_val = 64.0 * 0.5
+                            expected_val = 128.0 * 0.5
                             actual_val = float(c[0, 0])
                             diff = abs(actual_val - expected_val)
                             elapsed_v10 = (time.perf_counter() - t0) * 1000

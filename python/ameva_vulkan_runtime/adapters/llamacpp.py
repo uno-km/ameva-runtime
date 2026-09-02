@@ -15,6 +15,31 @@ from .base import _is_vulkan_report, _make_cpu_fallback, _MALI_VENDOR_ID
 logger = logging.getLogger("ameva_vulkan_runtime.adapters.llamacpp")
 
 
+def _calculate_llama_layers(engine: Any) -> int:
+    """Dynamically determines optimal GPU offload layers for GGUF LLMs."""
+    if engine is not None:
+        if isinstance(engine, dict) and "ngl" in engine and engine["ngl"] > 0:
+            return int(engine["ngl"])
+        if hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", 0) > 0:
+            return int(engine.n_gpu_layers)
+        if hasattr(engine, "ngl") and getattr(engine, "ngl", 0) > 0:
+            return int(engine.ngl)
+        if hasattr(engine, "n_layers") and getattr(engine, "n_layers", 0) > 0:
+            return int(engine.n_layers)
+        model_name = str(getattr(engine, "model", "") or getattr(engine, "model_path", "")).lower()
+        if "1b" in model_name or "0.5b" in model_name:
+            return 16
+        elif "3b" in model_name or "2b" in model_name:
+            return 24
+        elif "7b" in model_name or "8b" in model_name:
+            return 32
+        elif "13b" in model_name or "14b" in model_name:
+            return 40
+        elif "70b" in model_name:
+            return 80
+    return 33
+
+
 class LlamaCppAdapter:
     """termux-llamacpp (llama.cpp GGUF) Vulkan 가속 바인딩 어댑터."""
 
@@ -32,7 +57,7 @@ class LlamaCppAdapter:
         if is_vk:
             cpu_cores = os.cpu_count() or 8
             big_cores = max(1, cpu_cores // 2)
-            ngl = 33
+            ngl = _calculate_llama_layers(engine)
             is_mali = (report.vendor_id == _MALI_VENDOR_ID or "Mali" in (report.device_name or ""))
 
             config.update({

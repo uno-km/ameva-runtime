@@ -15,6 +15,25 @@ from .base import _is_vulkan_report, _make_cpu_fallback, _MALI_VENDOR_ID
 logger = logging.getLogger("ameva_vulkan_runtime.adapters.bitnet")
 
 
+def _calculate_bitnet_layers(engine: Any) -> int:
+    """Dynamically determines optimal GPU offload layers for BitNet 1.58-bit models."""
+    if engine is not None:
+        if hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", 0) > 0:
+            return int(engine.n_gpu_layers)
+        if hasattr(engine, "config") and hasattr(engine.config, "n_gpu_layers") and engine.config.n_gpu_layers > 0:
+            return int(engine.config.n_gpu_layers)
+        if hasattr(engine, "n_layers") and getattr(engine, "n_layers", 0) > 0:
+            return int(engine.n_layers)
+        model_name = str(getattr(engine, "model_name", "") or getattr(engine, "model", "")).lower()
+        if "0.7b" in model_name:
+            return 16
+        elif "1.3b" in model_name:
+            return 24
+        elif "3b" in model_name or "2.7b" in model_name:
+            return 32
+    return 32
+
+
 class BitnetAdapter:
     """termux-bitnet (BitNet 1.58-bit i2_s) Vulkan 가속 바인딩 어댑터."""
 
@@ -30,7 +49,7 @@ class BitnetAdapter:
         }
 
         if is_vk:
-            ngl = 33
+            ngl = _calculate_bitnet_layers(engine)
             mali_align_required = (report.vendor_id == _MALI_VENDOR_ID or
                                    "Mali" in (report.device_name or ""))
 

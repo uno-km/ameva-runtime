@@ -15,6 +15,25 @@ from .base import _is_vulkan_report, _make_cpu_fallback
 logger = logging.getLogger("ameva_vulkan_runtime.adapters.stt")
 
 
+def _calculate_whisper_layers(engine: Any) -> int:
+    """Dynamically determines optimal GPU offload layers based on Whisper model architecture."""
+    if engine is not None:
+        if hasattr(engine, "n_layers") and getattr(engine, "n_layers", 0) > 0:
+            return int(engine.n_layers)
+        model_name = str(getattr(engine, "model", "") or getattr(engine, "model_name", "")).lower()
+        if "tiny" in model_name:
+            return 4
+        elif "base" in model_name:
+            return 6
+        elif "small" in model_name:
+            return 12
+        elif "medium" in model_name:
+            return 24
+        elif "large" in model_name:
+            return 32
+    return 32
+
+
 class SttAdapter:
     """termux-stt (whisper.cpp / sherpa-onnx) Vulkan 가속 바인딩 어댑터."""
 
@@ -30,25 +49,28 @@ class SttAdapter:
         }
 
         if is_vk:
+            ngl = _calculate_whisper_layers(engine)
             config.update({
                 "backend": "vulkan",
                 "encoder_fp16": True,
                 "rtf_target": 0.28,
-                "gpu_layers": 33,
+                "gpu_layers": ngl,
                 "vulkan_flag": True,
             })
             if engine is not None:
                 try:
                     if hasattr(engine, "config"):
-                        engine.config.extra["gpu_layers"] = 33
+                        if not hasattr(engine.config, "extra") or engine.config.extra is None:
+                            engine.config.extra = {}
+                        engine.config.extra["gpu_layers"] = ngl
                         engine.config.extra["use_vulkan"] = True
                         logger.info(
                             "[ameva-vulkan-runtime:SttAdapter] WhisperEngine.config.extra 에 "
-                            "Vulkan 플래그 주입 완료 (device=%s, vendor=0x%04X)",
-                            report.device_name, report.vendor_id
+                            "Vulkan 플래그 주입 완료 (layers=%d, device=%s)",
+                            ngl, report.device_name
                         )
                     elif hasattr(engine, "set_vulkan"):
-                        engine.set_vulkan(True, gpu_layers=33)
+                        engine.set_vulkan(True, gpu_layers=ngl)
                     else:
                         logger.warning(
                             "[ameva-vulkan-runtime:SttAdapter] engine 에 config 또는 set_vulkan 속성이 없습니다. "
