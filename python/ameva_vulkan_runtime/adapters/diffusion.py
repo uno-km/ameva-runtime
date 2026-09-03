@@ -91,3 +91,57 @@ class DiffusionAdapter:
                     engine.set_vulkan_lib(None)
             except Exception as e:
                 logger.debug("[ameva-vulkan-runtime:DiffusionAdapter] unbind 중 무시된 예외: %s", e)
+
+    @classmethod
+    def build_cli_args(
+        cls,
+        executable: str,
+        model_path: str,
+        prompt: str,
+        output_path: str,
+        width: int = 512,
+        height: int = 512,
+        steps: int = 4,
+        cfg_scale: float = 1.0,
+        threads: Any = "auto",
+        target_backend: str = "auto",
+        sampling_method: Optional[str] = None,
+        seed: Optional[int] = None,
+        vae_path: Optional[str] = None,
+    ) -> list[str]:
+        """최신 sd-cli 규격에 부합하는 안전하고 검증된 Diffusion CLI 인자 목록을 조립합니다."""
+        import os
+        if threads == "auto" or threads is None:
+            cpu_count = os.cpu_count() or 8
+            thread_val = str(max(1, min(4, cpu_count // 2 if cpu_count > 4 else cpu_count)))
+        else:
+            thread_val = str(threads)
+
+        cmd = [
+            str(executable),
+            "-m", str(model_path),
+            "-p", str(prompt),
+            "-o", str(output_path),
+            "-W", str(width),
+            "-H", str(height),
+            "--steps", str(steps),
+            "-t", thread_val,
+            "--cfg-scale", str(cfg_scale),
+        ]
+
+        if target_backend == "cpu":
+            cmd.extend(["--backend", "cpu", "--params-backend", "cpu"])
+        elif target_backend in ("vulkan", "gpu"):
+            cmd.extend(["--backend", "vulkan", "--params-backend", "vulkan"])
+        else:
+            # Auto detection: On Mali devices, default to safe CPU SIMD
+            cmd.extend(["--backend", "cpu", "--params-backend", "cpu"])
+
+        if sampling_method:
+            cmd.extend(["--sampling-method", str(sampling_method)])
+        if seed is not None:
+            cmd.extend(["-s", str(seed)])
+        if vae_path:
+            cmd.extend(["--vae", str(vae_path)])
+
+        return cmd

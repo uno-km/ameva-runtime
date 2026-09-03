@@ -1,4 +1,4 @@
-﻿"""
+"""
 VisionAdapter — termux-vision (LLaVA ViT / YOLO) Vulkan Acceleration Adapter
 """
 from __future__ import annotations
@@ -94,3 +94,74 @@ class VisionAdapter:
                     engine.device = "cpu"
             except Exception as e:
                 logger.debug("[ameva-vulkan-runtime:VisionAdapter] unbind 중 무시된 예외: %s", e)
+
+    @classmethod
+    def build_cli_args(
+        cls,
+        executable: str,
+        text_model_path: str,
+        vision_model_path: str,
+        image_path: str,
+        prompt_file: str,
+        target_backend: str = "auto",
+        threads: Any = "auto",
+        context_limit: int = 2048,
+        max_tokens: int = 150,
+        temperature: float = 0.2,
+        repeat_penalty: Optional[float] = 1.2,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        presence_penalty: Optional[float] = None,
+        frequency_penalty: Optional[float] = None,
+        seed: Optional[int] = None,
+        ngl_override: Optional[int] = None,
+    ) -> list[str]:
+        """최신 llama-cli 규격에 부합하는 안전하고 검증된 VLM CLI 인자 목록을 조립합니다."""
+        import os
+        if threads == "auto" or threads is None:
+            cpu_count = os.cpu_count() or 8
+            thread_val = str(max(1, min(4, cpu_count // 2 if cpu_count > 4 else cpu_count)))
+        else:
+            thread_val = str(threads)
+
+        if ngl_override is not None:
+            ngl_val = str(ngl_override)
+        elif target_backend == "cpu":
+            ngl_val = "0"
+        elif target_backend in ("vulkan", "gpu"):
+            ngl_val = "99"
+        else:
+            ngl_val = "99"
+
+        cmd = [
+            str(executable),
+            "-m", str(text_model_path),
+            "--mmproj", str(vision_model_path),
+            "--image", str(image_path),
+            "-f", str(prompt_file),
+            "-t", thread_val,
+            "-c", str(context_limit),
+            "-n", str(max_tokens),
+            "--temp", str(temperature),
+            "-ngl", ngl_val,
+            "--single-turn",
+            "--simple-io",
+        ]
+
+        if target_backend in ("vulkan", "gpu"):
+            cmd.extend(["--device", "vulkan"])
+
+        if repeat_penalty is not None:
+            cmd.extend(["--repeat-penalty", str(repeat_penalty)])
+        if top_p is not None:
+            cmd.extend(["--top-p", str(top_p)])
+        if top_k is not None:
+            cmd.extend(["--top-k", str(top_k)])
+        if presence_penalty is not None:
+            cmd.extend(["--presence-penalty", str(presence_penalty)])
+        if frequency_penalty is not None:
+            cmd.extend(["--frequency-penalty", str(frequency_penalty)])
+        if seed is not None:
+            cmd.extend(["-s", str(seed)])
+
+        return cmd

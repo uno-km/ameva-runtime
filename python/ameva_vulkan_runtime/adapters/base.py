@@ -1,4 +1,4 @@
-﻿"""
+"""
 Base Utilities & Common Logic for Ameva Modality Adapters
 """
 from __future__ import annotations
@@ -37,3 +37,10 @@ def _make_cpu_fallback(module: str, report: DiagnosticReport, config: dict) -> B
         device_name=report.device_name, vendor_id=report.vendor_id,
         config=config, status="BOUND_CPU",
     )
+
+
+def _get_optimal_threads() -> int:
+    """Returns optimal threads count for big/performance cores."""
+    import os
+    cpu_count = os.cpu_count() or 8
+    return max(1, min(4, cpu_count // 2 if cpu_count > 4 else cpu_count))

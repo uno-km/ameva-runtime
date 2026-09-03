@@ -1,4 +1,4 @@
-﻿"""
+"""
 LlamaCppAdapter — termux-llamacpp (GGUF LLM) Vulkan Acceleration Adapter
 """
 from __future__ import annotations
@@ -191,3 +191,71 @@ class LlamaCppAdapter:
                         engine.device = "cpu"
             except Exception as e:
                 logger.debug("[ameva-vulkan-runtime:LlamaCppAdapter] unbind 중 무시된 예외: %s", e)
+
+    @classmethod
+    def build_cli_args(
+        cls,
+        executable: str,
+        model_path: str,
+        prompt: Optional[str] = None,
+        prompt_file: Optional[str] = None,
+        target_backend: str = "auto",
+        threads: Any = "auto",
+        context_limit: int = 2048,
+        max_tokens: int = 256,
+        temperature: float = 0.2,
+        repeat_penalty: Optional[float] = 1.1,
+        top_p: Optional[float] = None,
+        top_k: Optional[int] = None,
+        seed: Optional[int] = None,
+        ngl_override: Optional[int] = None,
+        no_display_prompt: bool = True,
+    ) -> list[str]:
+        """최신 llama-cli 규격에 부합하는 안전하고 검증된 LLM CLI 인자 목록을 조립합니다."""
+        if threads == "auto" or threads is None:
+            cpu_count = os.cpu_count() or 8
+            thread_val = str(max(1, min(4, cpu_count // 2 if cpu_count > 4 else cpu_count)))
+        else:
+            thread_val = str(threads)
+
+        if ngl_override is not None:
+            ngl_val = str(ngl_override)
+        elif target_backend == "cpu":
+            ngl_val = "0"
+        elif target_backend in ("vulkan", "gpu"):
+            ngl_val = "99"
+        else:
+            ngl_val = "99"
+
+        cmd = [
+            str(executable),
+            "-m", str(model_path),
+            "-t", thread_val,
+            "-c", str(context_limit),
+            "-n", str(max_tokens),
+            "--temp", str(temperature),
+            "-ngl", ngl_val,
+        ]
+
+        if prompt_file:
+            cmd.extend(["-f", str(prompt_file)])
+        elif prompt:
+            cmd.extend(["-p", str(prompt)])
+
+        if target_backend in ("vulkan", "gpu"):
+            cmd.extend(["--device", "vulkan"])
+
+        if no_display_prompt:
+            cmd.append("--no-display-prompt")
+
+        if repeat_penalty is not None:
+            cmd.extend(["--repeat-penalty", str(repeat_penalty)])
+        if top_p is not None:
+            cmd.extend(["--top-p", str(top_p)])
+        if top_k is not None:
+            cmd.extend(["--top-k", str(top_k)])
+        if seed is not None:
+            cmd.extend(["-s", str(seed)])
+
+        return cmd
+
