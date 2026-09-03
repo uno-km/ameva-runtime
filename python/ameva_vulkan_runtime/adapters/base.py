@@ -60,3 +60,33 @@ def _get_optimal_threads() -> int:
     import os
     cpu_count = os.cpu_count() or 8
     return max(1, min(4, cpu_count // 2 if cpu_count > 4 else cpu_count))
+
+
+def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
+    """Android Termux 환경에서 시스템 Vulkan 드라이버 및 바이너리 라이브러리 경로를 안전하게 보장하는 환경 변수 맵을 반환합니다."""
+    import os
+    from pathlib import Path
+
+    env = dict(base_env or os.environ)
+    current_ld = env.get("LD_LIBRARY_PATH", "")
+
+    search_dirs = [
+        "/system/lib64",
+        "/vendor/lib64",
+        "/system/lib",
+        "/vendor/lib",
+        str(Path.home() / ".termux-llama/current/lib"),
+        "/data/data/com.termux/files/usr/lib",
+    ]
+
+    valid_dirs = [d for d in search_dirs if os.path.exists(d)]
+    existing_parts = [p for p in current_ld.split(":") if p]
+    
+    # Merge preserving order without duplicates
+    merged = []
+    for d in valid_dirs + existing_parts:
+        if d not in merged:
+            merged.append(d)
+
+    env["LD_LIBRARY_PATH"] = ":".join(merged)
+    return env
