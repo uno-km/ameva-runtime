@@ -111,6 +111,7 @@ class VisionAdapter:
         presence_penalty: Optional[float] = None,
         frequency_penalty: Optional[float] = None,
         seed: Optional[int] = None,
+        device_name: Optional[str] = None,
         ngl_override: Optional[int] = None,
     ) -> list[str]:
         """최신 llama-cli 규격에 부합하는 안전하고 검증된 VLM CLI 인자 목록을 조립합니다."""
@@ -145,8 +146,8 @@ class VisionAdapter:
             "--simple-io",
         ]
 
-        if target_backend in ("vulkan", "gpu"):
-            cmd.extend(["--device", "vulkan"])
+        if target_backend in ("vulkan", "gpu") and device_name:
+            cmd.extend(["--device", device_name])
 
         if repeat_penalty is not None:
             cmd.extend(["--repeat-penalty", str(repeat_penalty)])

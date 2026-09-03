@@ -240,9 +240,8 @@ class LlamaCppAdapter:
         elif prompt:
             cmd.extend(["-p", str(prompt)])
 
-        if target_backend in ("vulkan", "gpu"):
-            dev = device_name if device_name else "Vulkan0"
-            cmd.extend(["--device", dev])
+        if target_backend in ("vulkan", "gpu") and device_name:
+            cmd.extend(["--device", device_name])
 
         if no_display_prompt:
             cmd.append("--no-display-prompt")
