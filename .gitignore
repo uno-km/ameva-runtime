@@ -47,3 +47,17 @@ state.json
 ssh_real_device_test.py
 *.env
 .env.*
+
+# ==============================================================================
+# Security & Credentials Isolation Policy
+# ==============================================================================
+.env*
+!.env.example
+*.pem
+*.key
+*.crt
+id_rsa*
+.pypirc
+.npmrc
+secrets.json
+scratch/
