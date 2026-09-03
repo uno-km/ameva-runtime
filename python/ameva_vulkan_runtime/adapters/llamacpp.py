@@ -7,10 +7,7 @@ import logging
 import os
 from typing import Any
 
-from ..doctor import DiagnosticReport
-from ..exceptions import AmevaRuntimeError
-from ..protocol import BindingResult
-from .base import _is_vulkan_report, _make_cpu_fallback, _MALI_VENDOR_ID
+from .base import _is_vulkan_report, _make_cpu_fallback, _MALI_VENDOR_ID, DiagnosticReport, BindingResult
 
 logger = logging.getLogger("ameva_vulkan_runtime.adapters.llamacpp")
 

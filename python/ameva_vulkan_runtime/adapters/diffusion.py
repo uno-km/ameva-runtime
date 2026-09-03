@@ -7,10 +7,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from ..doctor import DiagnosticReport
-from ..exceptions import AmevaRuntimeError
-from ..protocol import BindingResult
-from .base import _is_vulkan_report, _make_cpu_fallback
+from .base import _is_vulkan_report, _make_cpu_fallback, DiagnosticReport, BindingResult
 
 logger = logging.getLogger("ameva_vulkan_runtime.adapters.diffusion")
 

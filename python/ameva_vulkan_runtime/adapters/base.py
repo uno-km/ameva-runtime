@@ -6,8 +6,24 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from ..doctor import DiagnosticReport
-from ..protocol import BindingResult
+try:
+    from ..doctor import DiagnosticReport
+except ImportError:
+    DiagnosticReport = Any
+
+try:
+    from ..protocol import BindingResult
+except ImportError:
+    from dataclasses import dataclass
+    @dataclass
+    class BindingResult:
+        module: str
+        backend: str
+        is_vulkan: bool
+        device_name: str
+        vendor_id: int
+        config: dict
+        status: str
 
 logger = logging.getLogger("ameva_vulkan_runtime.adapters")
 
