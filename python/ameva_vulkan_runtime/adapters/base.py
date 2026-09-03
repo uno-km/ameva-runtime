@@ -62,31 +62,75 @@ def _get_optimal_threads() -> int:
     return max(1, min(4, cpu_count // 2 if cpu_count > 4 else cpu_count))
 
 
+def find_system_vulkan_driver_dir() -> Optional[str]:
+    """시스템 내에 실제로 설치된 유효한 libvulkan.so 드라이버 위치를 동적으로 프로빙하여 반환합니다."""
+    import ctypes
+    import ctypes.util
+    import os
+    from pathlib import Path
+
+    # 1. 표준 find_library 및 직접 dlopen 검사
+    lib_name = ctypes.util.find_library("vulkan")
+    if lib_name:
+        try:
+            handle = ctypes.CDLL(lib_name)
+            if hasattr(handle, "vkCreateInstance"):
+                p = os.path.dirname(os.path.abspath(lib_name))
+                if p: return p
+        except Exception:
+            pass
+
+    # 2. Android HAL 및 시스템 드라이버 영역 동적 스캔
+    probe_roots = [
+        Path("/system/lib64"),
+        Path("/vendor/lib64"),
+        Path("/system/lib"),
+        Path("/vendor/lib"),
+        Path("/apex/com.android.runtime/lib64"),
+        Path("/system/vendor/lib64"),
+    ]
+
+    for root in probe_roots:
+        so_path = root / "libvulkan.so"
+        if so_path.exists():
+            try:
+                handle = ctypes.CDLL(str(so_path))
+                if hasattr(handle, "vkCreateInstance"):
+                    return str(root)
+            except Exception:
+                # dlopen 실패 시에도 파일이 존재하면 후보로 반환
+                return str(root)
+
+    return None
+
+
 def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
-    """Android Termux 환경에서 시스템 Vulkan 드라이버 및 바이너리 라이브러리 경로를 안전하게 보장하는 환경 변수 맵을 반환합니다."""
+    """
+    AMEVA Vulkan 런타임 우선권 기반 환경 변수 맵을 반환합니다.
+    동적으로 시스템 Vulkan 드라이버를 탐색하여 LD_LIBRARY_PATH 최상단(우선순위 1위)에 자동 주입합니다.
+    """
     import os
     from pathlib import Path
 
     env = dict(base_env or os.environ)
     current_ld = env.get("LD_LIBRARY_PATH", "")
 
-    search_dirs = [
-        "/system/lib64",
-        "/vendor/lib64",
-        "/system/lib",
-        "/vendor/lib",
-        str(Path.home() / ".termux-llama/current/lib"),
-        "/data/data/com.termux/files/usr/lib",
-    ]
-
-    valid_dirs = [d for d in search_dirs if os.path.exists(d)]
-    existing_parts = [p for p in current_ld.split(":") if p]
+    # 동적 프로빙으로 실제 Vulkan 드라이버 디렉토리 우선 획득
+    discovered_driver_dir = find_system_vulkan_driver_dir()
     
-    # Merge preserving order without duplicates
-    merged = []
-    for d in valid_dirs + existing_parts:
-        if d not in merged:
-            merged.append(d)
+    # 우선순위 리스트 구성 (동적 드라이버 위치가 1순위)
+    priority_dirs = []
+    if discovered_driver_dir and discovered_driver_dir not in priority_dirs:
+        priority_dirs.append(discovered_driver_dir)
 
-    env["LD_LIBRARY_PATH"] = ":".join(merged)
+    # 런타임 자체 번들 라이브러리 (2순위)
+    llama_lib = str(Path.home() / ".termux-llama/current/lib")
+    if os.path.exists(llama_lib) and llama_lib not in priority_dirs:
+        priority_dirs.append(llama_lib)
+
+    # 기존 경로 병합 (중복 방지 및 우선순위 유지)
+    existing_parts = [p for p in current_ld.split(":") if p]
+    final_dirs = priority_dirs + [p for p in existing_parts if p not in priority_dirs]
+
+    env["LD_LIBRARY_PATH"] = ":".join(final_dirs)
     return env

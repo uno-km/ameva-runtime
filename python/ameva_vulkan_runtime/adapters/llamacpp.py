@@ -205,6 +205,7 @@ class LlamaCppAdapter:
         top_p: Optional[float] = None,
         top_k: Optional[int] = None,
         seed: Optional[int] = None,
+        device_name: Optional[str] = None,
         ngl_override: Optional[int] = None,
         no_display_prompt: bool = True,
     ) -> list[str]:
@@ -240,7 +241,8 @@ class LlamaCppAdapter:
             cmd.extend(["-p", str(prompt)])
 
         if target_backend in ("vulkan", "gpu"):
-            cmd.extend(["--device", "vulkan"])
+            dev = device_name if device_name else "Vulkan0"
+            cmd.extend(["--device", dev])
 
         if no_display_prompt:
             cmd.append("--no-display-prompt")

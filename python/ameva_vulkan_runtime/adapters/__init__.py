@@ -11,7 +11,7 @@ Re-exports individual modality adapters for:
 """
 from __future__ import annotations
 
-from .base import _is_vulkan_report, _make_cpu_fallback, _ADRENO_VENDOR_ID, _MALI_VENDOR_ID, BindingResult, get_vulkan_env
+from .base import _is_vulkan_report, _make_cpu_fallback, _ADRENO_VENDOR_ID, _MALI_VENDOR_ID, BindingResult, get_vulkan_env, find_system_vulkan_driver_dir
 from .bitnet import BitnetAdapter
 from .diffusion import DiffusionAdapter
 from .llamacpp import LlamaCppAdapter
@@ -28,6 +28,7 @@ __all__ = [
     "VisionAdapter",
     "BindingResult",
     "get_vulkan_env",
+    "find_system_vulkan_driver_dir",
     "_is_vulkan_report",
     "_make_cpu_fallback",
 ]
