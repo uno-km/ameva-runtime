@@ -34,6 +34,8 @@ _MALI_VENDOR_ID = 0x13B5
 def _is_vulkan_report(report: Optional[DiagnosticReport]) -> bool:
     if report is None:
         return False
+    if not report.device_name or report.device_name in ("Unknown", "None", ""):
+        return False
     return bool(
         report.overall_success
         or report.recommended_backend in ("vulkan", "vulkan_driver_only")

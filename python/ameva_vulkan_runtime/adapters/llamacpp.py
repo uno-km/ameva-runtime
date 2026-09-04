@@ -56,6 +56,13 @@ class LlamaCppAdapter:
             big_cores = max(1, cpu_cores // 2)
             ngl = _calculate_llama_layers(engine)
             is_mali = (report.vendor_id == _MALI_VENDOR_ID or "Mali" in (report.device_name or ""))
+            # Prioritize Android Bionic System Vulkan ICD over Termux Mesa
+            if is_mali or os.path.exists("/system/lib64/libvulkan.so"):
+                current_ld = os.environ.get("LD_LIBRARY_PATH", "")
+                if not current_ld.startswith("/system/lib64"):
+                    os.environ["LD_LIBRARY_PATH"] = f"/system/lib64:{current_ld}".rstrip(":")
+                config["system_icd_prioritized"] = True
+                config["bridge_active"] = True
 
             config.update({
                 "backend": "vulkan",
@@ -74,6 +81,7 @@ class LlamaCppAdapter:
                         engine["device"] = "vulkan"
                         engine.setdefault("flash_attn", True)
                         engine.setdefault("threads", big_cores)
+                        engine.setdefault("env", {})["LD_LIBRARY_PATH"] = os.environ.get("LD_LIBRARY_PATH", "")
                     elif hasattr(engine, "config"):
                         cfg = engine.config
                         if isinstance(cfg, dict):

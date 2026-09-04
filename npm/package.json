@@ -1,7 +1,7 @@
 {
   "name": "@ameva/vulkan-runtime",
-  "version": "1.2.0",
-  "description": "Cross-Platform Vulkan GPU Acceleration Runtime and HAL for Mobile Node.js & Android Termux",
+  "version": "1.2.1",
+  "description": "SoC-aware adaptive abstraction runtime utilizing device resources for Mobile Node.js & Android Termux",
   "main": "index.js",
   "types": "index.d.ts",
   "bin": {

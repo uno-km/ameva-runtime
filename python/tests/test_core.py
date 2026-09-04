@@ -61,6 +61,83 @@ class TestCoreContext(unittest.TestCase):
         self.assertEqual(ctx.backend_type, "cpu_neon")
         ctx.close()
 
+    def test_soc_mali_termux_auto_routing(self):
+        """Mali GPU in Termux CLI must automatically and immediately route to CPU NEON without Vulkan probe."""
+        from unittest.mock import patch
+        from ameva_vulkan_runtime.platform import SoCInfo
+
+        mock_soc = SoCInfo(
+            vendor="samsung_exynos",
+            chipname="exynos1380",
+            gpu_family="mali",
+            kgsl_accessible=False,
+            mali_node_accessible=True,
+            can_direct_vulkan_cli=False,
+            recommended_backend="cpu_neon",
+            cpu_model="Cortex-A78 x4 + Cortex-A55 x4",
+            cpu_cores=8,
+            diagnosis_reason="Samsung Exynos/Mali in Termux CLI lacks headless window context. Routed to pure ARM NEON CPU mode.",
+        )
+
+        with patch("ameva_vulkan_runtime.core.detect_soc_environment", return_value=mock_soc):
+            with create_context(device="auto") as ctx:
+                self.assertEqual(ctx.backend_type, "cpu_neon")
+                self.assertFalse(ctx.is_gpu)
+                self.assertIn("NEON", ctx.device_name)
+                self.assertEqual(ctx.execution_flags["soc_vendor"], "samsung_exynos")
+
+    def test_soc_mali_explicit_gpu_fail_fast(self):
+        """Mali GPU in Termux CLI requesting explicit 'vulkan' or 'gpu' must raise PlatformNotSupportedError (Zero-Silent-Fallback)."""
+        from unittest.mock import patch
+        from ameva_vulkan_runtime.platform import SoCInfo
+
+        mock_soc = SoCInfo(
+            vendor="samsung_exynos",
+            chipname="exynos1380",
+            gpu_family="mali",
+            kgsl_accessible=False,
+            mali_node_accessible=True,
+            can_direct_vulkan_cli=False,
+            recommended_backend="cpu_neon",
+            cpu_model="Cortex-A78 x4 + Cortex-A55 x4",
+            cpu_cores=8,
+            diagnosis_reason="Samsung Exynos/Mali in Termux CLI lacks headless window context.",
+        )
+
+        with patch("ameva_vulkan_runtime.core.detect_soc_environment", return_value=mock_soc):
+            with self.assertRaises(PlatformNotSupportedError) as cm:
+                create_context(device="vulkan")
+            self.assertIn("Zero-Silent-Fallback", str(cm.exception))
+            self.assertIn("Mali", str(cm.exception))
+
+    def test_soc_adreno_vulkan_routing(self):
+        """Qualcomm Adreno with accessible KGSL allows direct Vulkan probe."""
+        from unittest.mock import patch
+        from ameva_vulkan_runtime.platform import SoCInfo
+        from ameva_vulkan_runtime.doctor import Doctor
+
+        mock_soc = SoCInfo(
+            vendor="qualcomm",
+            chipname="sm8650",
+            gpu_family="adreno",
+            kgsl_accessible=True,
+            mali_node_accessible=False,
+            can_direct_vulkan_cli=True,
+            recommended_backend="vulkan",
+            cpu_model="Cortex-X4 + Cortex-A720",
+            cpu_cores=8,
+            diagnosis_reason="Qualcomm Adreno with accessible /dev/kgsl-3d0 node.",
+        )
+
+        with patch("ameva_vulkan_runtime.core.detect_soc_environment", return_value=mock_soc):
+            with patch.object(Doctor, "quick_probe", return_value=True):
+                with patch.object(Doctor, "quick_probe_device", return_value="Adreno (TM) 750"):
+                    with create_context(device="auto") as ctx:
+                        self.assertEqual(ctx.backend_type, "vulkan")
+                        self.assertTrue(ctx.is_gpu)
+                        self.assertEqual(ctx.device_name, "Adreno (TM) 750")
+
 
 if __name__ == "__main__":
     unittest.main()
+

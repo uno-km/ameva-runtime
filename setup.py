@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="ameva-vulkan-runtime",
-    version="1.2.0",
-    description="Unified Cross-Modal Vulkan GPU Acceleration Runtime & HAL for Mobile Android",
+    version="1.2.1",
+    description="SoC-aware adaptive abstraction runtime utilizing device resources for Android Termux",
     long_description=open("README.pypi.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="Eunho Kim",

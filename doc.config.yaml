@@ -1,53 +1,44 @@
 name: AMEVA-Vulkan-Runtime
 package_name_pypi: ameva-vulkan-runtime
 package_name_npm: ameva-vulkan-runtime
-version: v1.2.0
+version: "v1.2.1"
 release_name: Hardened Production Release
 license: Apache-2.0
 platform: Android ARM64 / Snapdragon & Mali & Xclipse
 github_repo_url: https://github.com/uno-km/ameva-vulkan-runtime
-tagline_en: Unified Cross-Modal Vulkan GPU Acceleration Runtime & HAL for Mobile Android
-tagline_ko: 안드로이드 모바일 환경을 위한 통합 크로스 모달 Vulkan GPU 가속 런타임 및 하드웨어 추상화 계층(HAL)
+tagline_en: SoC-Aware Adaptive Abstraction Runtime Utilizing Device Resources for Android Termux
+tagline_ko: 안드로이드 Termux 환경에서 디바이스 리소스를 활용하는 SoC 감지 및 적응형 추상화 런타임
 quick_install_cmd: 'pip install ameva-vulkan-runtime
 
   # or: npm install ameva-vulkan-runtime'
-why_challenge_en: Running multi-modal AI on mobile Android is plagued by fragmented
-  GPU drivers, loader crashes between Bionic and Mesa, tensor alignment buffer overflows,
-  and redundant binary bloat across individual packages.
-why_challenge_ko: 안드로이드 환경에서 멀티모달 AI를 구동할 때 벤더별 GPU 드라이버 결함, Bionic과 Mesa 간 로더 충돌(SIGABRT),
-  텐서 정렬 미비로 인한 메모리 침범(OOB), 그리고 각 패키지별 중복 바이너리 비대화가 심각한 난제로 작용합니다.
-description_en: Provides a single, zero-hardcoded C++20 Vulkan Hardware Abstraction
-  Layer (HAL) and universal runtime for STT, Vision, LLM, Diffusion, and Training
-  with a granular 12-stage validation hierarchy (V0-V11) and zero-data-loss auto-recovery.
-description_ko: 단일 C++20 Vulkan 하드웨어 추상화 계층(HAL)과 통합 런타임을 통해 STT, 비전, LLM, 디퓨전, 트레이닝
-  전 모달리티를 가속하며, 12단계 정밀 자체 검증(V0~V11)과 무손실 자동 복구 체계를 제공합니다.
+why_challenge_en: Running multi-modal AI on mobile Android requires adaptive utilization
+  of device resources across diverse SoC architectures (Qualcomm Adreno and Samsung Exynos ARM Mali).
+why_challenge_ko: 안드로이드 환경에서 멀티모달 AI를 구동할 때 SoC 아키텍처(Qualcomm Adreno 및 Samsung Exynos Mali)에 따라 디바이스 리소스를 안정적으로 활용하는 것이 핵심 과제입니다.
+description_en: Provides a C++20 Hardware Abstraction Layer (HAL) with Zero-Guesswork
+  SoC auto-detection, utilizing hardware paths on Qualcomm Adreno and stable ARM NEON 4-Thread FP16 CPU execution on Exynos Mali.
+description_ko: Zero-Guesswork SoC 자동 감지 기능을 갖춘 C++20 하드웨어 추상화 계층(HAL)을 통해 Qualcomm Adreno 환경에서는 하드웨어 경로를, Exynos Mali 환경에서는 안정적인 ARM NEON 4-스레드 FP16 CPU 연산을 지원합니다.
 features:
-- title_en: Single Loader Chain Pinning
-  title_ko: 시스템 ICD 단일 로더 체인 고정
-  desc_en: Eliminates Termux Mesa vs Android Bionic symbol collisions via dynamic
-    dladdr provenance and sys_gpdf2 isolation.
-  desc_ko: 동적 dladdr 텔레메트리를 통해 시스템 순정 ICD 드라이버를 단일 체인으로 고정하여 Termux Mesa 충돌(SIGABRT)을
-    원천 차단합니다.
-- title_en: 12-Stage Probing & Fallback
-  title_ko: 12단계 정밀 자체 진단 및 무손실 복구
-  desc_en: Validates GPU capability from dlopen (V0) to E2E model inference (V11)
-    with transparent CPU NEON recovery.
-  desc_ko: dlopen 라이브러리 오픈(V0)부터 E2E 추론(V11)까지 12단계로 검증하며, 오류 시 투명한 CPU NEON 복구를 보장합니다.
-- title_en: Multi-Modal Cross-Acceleration
-  title_ko: 전 모달리티 단일 런타임 공유
-  desc_en: Powers Whisper STT, LLaVA Vision, LLaMA/BitNet LLM, and Stable Diffusion
-    from a single 58MB shared core.
-  desc_ko: 단일 58MB 공유 라이브러리로 Whisper 음성인식, LLaVA 비전, LLaMA/BitNet LLM, Stable Diffusion을
-    통합 가속합니다.
+- title_en: Runtime SoC Auto-Detection
+  title_ko: SoC 런타임 자동 감지
+  desc_en: Scans /proc/cpuinfo and device nodes on startup to route execution without guesswork.
+  desc_ko: 시스템 구동 시 /proc/cpuinfo 및 디바이스 노드를 스캔하여 최적의 연산 경로로 자동 분기합니다.
+- title_en: Adaptive Resource Routing
+  title_ko: 적응형 디바이스 리소스 분기
+  desc_en: Routes to hardware paths on Adreno and deterministic ARM NEON 4-Thread FP16 CPU execution on Exynos Mali.
+  desc_ko: Adreno에서는 하드웨어 경로를 활용하고, Exynos Mali에서는 안정적인 ARM NEON 4-스레드 FP16 CPU 연산으로 즉각 분기합니다.
+- title_en: Unified Resource Core
+  title_ko: 공통 런타임 코어 일원화
+  desc_en: Powers Whisper STT, LLaVA Vision, LLaMA/BitNet LLM, and Stable Diffusion from a single shared core.
+  desc_ko: 단일 58MB 공유 라이브러리로 Whisper 음성인식, LLaVA 비전, LLaMA/BitNet LLM, Stable Diffusion의 디바이스 리소스 활용을 통합 관리합니다.
 matrix_table:
-- category: Supported GPUs
-  operations: Qualcomm Adreno 830/700/600, ARM Mali-G78/G68/G77, Samsung Xclipse 950/920
+- category: Target SoCs
+  operations: Qualcomm Snapdragon (Adreno), Samsung Exynos (Cortex CPU NEON & Mali)
   status: Production
-- category: Validation Hierarchy
-  operations: V0 (Loader) ~ V11 (E2E Diffusion / Whisper / LLaMA Inference)
+- category: Operation Modes
+  operations: Hardware Execution (Adreno), ARM NEON 4-Thread FP16 CPU Mode (Exynos)
   status: Production
-- category: Zero-Drift Quirks Fixes
-  operations: Adreno Subgroup Control Bypass, Mali 128-byte Strict Memory Alignment
+- category: Roadmap
+  operations: Phase 1 CLI Deterministic Routing, Phase 2 Android Foreground Service JNI Wrapper
   status: Production
 code_example_py: 'import ameva_vulkan_runtime as avr
 
@@ -80,7 +71,7 @@ code_example_js: 'import { Doctor, createContext } from "ameva-vulkan-runtime";
 
   console.log(`Vulkan Context Ready on ${ctx.deviceName}`);'
 changelog:
-- version: v1.2.0
+- version: "v1.2.1"
   date: '2026-09-02'
   title: Hardened Fail-Fast & Complete 12-Stage Diagnostic Suite
   type: Production Release (Latest)
@@ -90,7 +81,7 @@ changelog:
   - 'Exynos 2100 RTLD_LAZY Isolation: Resolved Bionic GLESv3 symbol linking failure on Samsung One UI devices.'
   - 'Strict Fail-Fast Exception Architecture: Replaced silent -1 return codes with explicit AmevaVulkanError exceptions preserving stack traces.'
   - 'Zero-Drift Hardware Profile Packaging: Registered validated-vulkan-profiles.json in package-data with bidirectional fuzzy matching.'
-- version: v1.1.0
+- version: "v1.2.1"
   date: '2026-09-01'
   title: Galaxy A35 Validation & CTypes Pointer Patch
   type: Maintenance Release
@@ -104,7 +95,7 @@ changelog:
     targeting big-core clusters (-t 4) on mobile octa-core SoCs.'
   - 'Strict Vulkan 3-Tier Execution Mode: Fail-Fast protection for explicit --device
     vulkan requests without silent CPU masking.'
-- version: v1.0.0
+- version: "v1.2.1"
   date: '2026-08-15'
   title: Initial Production Release
   type: Initial Release

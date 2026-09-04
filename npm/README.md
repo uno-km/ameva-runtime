@@ -4,8 +4,8 @@
 [![npm downloads](https://img.shields.io/npm/dm/ameva-vulkan-runtime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/ameva-vulkan-runtime)
 [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-vulkan-runtime)
 
-> **안드로이드 모바일 환경을 위한 통합 크로스 모달 Vulkan GPU 가속 런타임 및 하드웨어 추상화 계층(HAL)**  
-> *Unified Cross-Modal Vulkan GPU Acceleration Runtime & HAL for Mobile Android*
+> **안드로이드 Termux 환경에서 디바이스 리소스를 활용하는 SoC 감지 및 적응형 추상화 런타임**  
+> *SoC-Aware Adaptive Abstraction Runtime Utilizing Device Resources for Android Termux*
 
 ## Installation
 
@@ -19,15 +19,15 @@ npm install ameva-vulkan-runtime
 import { Doctor, createContext } from "ameva-vulkan-runtime";
 
 const doctor = new Doctor();
-const report = await doctor.runSelfTest(true);
-console.log(`Backend: ${report.recommendedBackend}, Device: ${report.deviceName}`);
+const report = await doctor.runSelfTest();
+console.log(`GPU Status: ${report.overallSuccess}, GPU: ${report.deviceName}`);
 
-const ctx = createContext({ device: "auto" });
-console.log(`Vulkan Context Active: ${ctx.isActive} (${ctx.backendType})`);
+const ctx = await createContext({ device: "auto" });
+console.log(`Vulkan Context Ready on ${ctx.deviceName}`);
 ```
 
 ## Description
-Provides a single, zero-hardcoded C++20 Vulkan Hardware Abstraction Layer (HAL) and universal runtime for STT, Vision, LLM, Diffusion, and Training with a granular 12-stage validation hierarchy (V0-V11) and zero-data-loss auto-recovery.
+Provides a C++20 Hardware Abstraction Layer (HAL) with Zero-Guesswork SoC auto-detection, utilizing hardware paths on Qualcomm Adreno and stable ARM NEON 4-Thread FP16 CPU execution on Exynos Mali.
 
 ## Documentation
 - [Official Documentation & API Reference](https://uno-km.vercel.app/lib/ameva-vulkan-runtime/)

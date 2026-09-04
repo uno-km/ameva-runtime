@@ -88,6 +88,27 @@ class TestModalitiesIntegration(unittest.TestCase):
         if self.is_vulkan:
             self.assertEqual(engine_obj.config.n_gpu_layers, 33)
 
+    def test_llamacpp_adapter_mali_system_icd(self):
+        """Mali GPU 진단 보고서에 대한 Android System ICD 및 브릿지 우선순위 검증."""
+        mali_report = DiagnosticReport(
+            overall_success=True,
+            device_name="Mali-G68",
+            driver_version="1.3.219",
+            loader_path="/system/lib64/libvulkan.so",
+            vendor_id=0x13B5,
+            passed_stages=11,
+            total_stages=11,
+            total_elapsed_ms=4.88,
+            recommended_backend="vulkan"
+        )
+        engine_dict = {"ngl": 0}
+        result = LlamaCppAdapter.bind(engine_dict, mali_report)
+        self.assertEqual(result.backend, "vulkan")
+        self.assertTrue(result.config.get("mali_align"))
+        self.assertTrue(result.config.get("system_icd_prioritized"))
+        self.assertTrue(result.config.get("bridge_active"))
+        self.assertTrue(engine_dict["env"]["LD_LIBRARY_PATH"].startswith("/system/lib64"))
+
     def test_tts_adapter_with_real_tts_engine(self):
         """실제 ONNXNeuralEngine 인스턴스에 대한 바인딩 수행."""
         try:

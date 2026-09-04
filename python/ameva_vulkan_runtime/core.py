@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Optional
+from typing import Optional, Any
 from .doctor import Doctor
+from .platform import detect_soc_environment, SoCInfo
 from .exceptions import PlatformNotSupportedError, BufferAllocationError
 
 class VulkanContext:
@@ -15,6 +16,7 @@ class VulkanContext:
     def __init__(self, device_mode: str = "auto", memory_limit_mb: int = 1024):
         self.device_mode = str(device_mode or "auto").strip().lower()
         self.memory_limit_mb = memory_limit_mb
+        self.soc_info: SoCInfo = detect_soc_environment()
         self.doctor = Doctor()
         self.device_name = "ARM64 CPU"
         self.backend_type = "cpu_neon"
@@ -29,13 +31,23 @@ class VulkanContext:
         self._initialize()
 
     def _initialize(self):
-        """Initializes the backend following strict Fail-Fast or Auto-Recovery rules."""
+        """Initializes the backend following strict Zero-Silent-Fallback and SoC detection rules."""
+        soc = self.soc_info
+
         if self.device_mode in ("vulkan", "gpu"):
+            # 1. Check if platform/SoC cannot support headless Vulkan in Termux CLI
+            if not soc.can_direct_vulkan_cli:
+                raise PlatformNotSupportedError(
+                    f"Explicit GPU backend requested ('device=\"{self.device_mode}\"'), but {soc.diagnosis_reason} "
+                    "Silent CPU fallback is prohibited under Zero-Silent-Fallback engineering protocol."
+                )
+
             is_supported = self.doctor.quick_probe()
             if not is_supported:
                 raise PlatformNotSupportedError(
                     f"Explicit GPU backend requested ('device=\"{self.device_mode}\"'), but target hardware "
-                    "failed Vulkan validation. Silent CPU fallback is disabled in explicit mode."
+                    "failed Vulkan validation (0 physical devices or driver initialization failure). "
+                    "Silent CPU fallback is prohibited under Zero-Silent-Fallback engineering protocol."
                 )
             self.backend_type = "vulkan"
             dev_name = self.doctor.quick_probe_device()
@@ -44,23 +56,41 @@ class VulkanContext:
             self.execution_flags = {
                 "use_gpu": True,
                 "backend": "vulkan",
-                "threads": os.cpu_count() or 4
+                "threads": soc.cpu_cores,
+                "soc_vendor": soc.vendor,
+                "gpu_family": soc.gpu_family,
             }
             self._is_active = True
 
         elif self.device_mode == "cpu":
             # Zero-overhead bypass: Skip Vulkan loader and initialize CPU NEON context
             self.backend_type = "cpu_neon"
-            self.device_name = "ARM64 NEON Vector CPU Engine"
+            self.device_name = f"{soc.cpu_model} NEON Vector CPU Engine"
             self.profile_quirks = {}
             self.execution_flags = {
                 "use_gpu": False,
                 "backend": "cpu_neon",
-                "threads": os.cpu_count() or 4
+                "threads": soc.cpu_cores,
+                "soc_vendor": soc.vendor,
+                "gpu_family": soc.gpu_family,
             }
             self._is_active = True
 
-        else:  # "auto" or fallback
+        else:  # "auto" mode
+            if not soc.can_direct_vulkan_cli:
+                # Direct route to pure NEON CPU without wasting cycles or spitting noisy Vulkan errors
+                self.backend_type = "cpu_neon"
+                self.device_name = f"{soc.cpu_model} NEON Vector CPU Engine ({soc.vendor.title()} CLI Direct)"
+                self.execution_flags = {
+                    "use_gpu": False,
+                    "backend": "cpu_neon",
+                    "threads": soc.cpu_cores,
+                    "soc_vendor": soc.vendor,
+                    "gpu_family": soc.gpu_family,
+                }
+                self._is_active = True
+                return
+
             is_supported = self.doctor.quick_probe()
             if is_supported:
                 self.backend_type = "vulkan"
@@ -69,16 +99,20 @@ class VulkanContext:
                 self.execution_flags = {
                     "use_gpu": True,
                     "backend": "vulkan",
-                    "threads": os.cpu_count() or 4
+                    "threads": soc.cpu_cores,
+                    "soc_vendor": soc.vendor,
+                    "gpu_family": soc.gpu_family,
                 }
             else:
                 # Transparent recovery to high-performance NEON
                 self.backend_type = "cpu_neon"
-                self.device_name = "ARM64 NEON Vector CPU Engine (Auto-Recovered)"
+                self.device_name = f"{soc.cpu_model} NEON Vector CPU Engine (Auto-Recovered)"
                 self.execution_flags = {
                     "use_gpu": False,
                     "backend": "cpu_neon",
-                    "threads": os.cpu_count() or 4
+                    "threads": soc.cpu_cores,
+                    "soc_vendor": soc.vendor,
+                    "gpu_family": soc.gpu_family,
                 }
             self._is_active = True
 
@@ -94,10 +128,27 @@ class VulkanContext:
 
     def bind_adapter(self, adapter_cls, engine: Any = None):
         """Binds an adapter to the target engine and registers it for lifecycle unbinding."""
-        report = self.doctor.run_self_test(verbose=False)
+        if not self.is_gpu:
+            from .doctor import DiagnosticReport
+            report = DiagnosticReport(
+                overall_success=False,
+                device_name=self.device_name,
+                driver_version="N/A",
+                loader_path="",
+                vendor_id=self.vendor_id,
+                passed_stages=0,
+                total_stages=12,
+                total_elapsed_ms=0.0,
+                recommended_backend="cpu_neon",
+                stages=[],
+                profile_quirks={},
+            )
+        else:
+            report = self.doctor.run_self_test(verbose=False)
         result = adapter_cls.bind(engine, report)
         self._bound_adapters.append((adapter_cls, engine))
         return result
+
 
     def unbind_all(self) -> None:
         """Unbinds all registered adapters and resets bound engine acceleration states."""
