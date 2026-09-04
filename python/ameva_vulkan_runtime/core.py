@@ -126,6 +126,13 @@ class VulkanContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
+    def bind(self, module_name_or_adapter: Any, engine: Any = None):
+        """Flexible binding supporting both module string identifiers and adapter classes."""
+        if isinstance(module_name_or_adapter, str):
+            from ameva_runtime import get_runtime
+            return get_runtime().bind_engine(module_name_or_adapter, engine)
+        return self.bind_adapter(module_name_or_adapter, engine)
+
     def bind_adapter(self, adapter_cls, engine: Any = None):
         """Binds an adapter to the target engine and registers it for lifecycle unbinding."""
         if not self.is_gpu:

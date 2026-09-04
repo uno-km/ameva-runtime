@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ameva-vulkan-runtime"
-version = "1.2.1"
-description = "Unified Cross-Modal Vulkan GPU Acceleration Runtime & HAL for Mobile Android"
+name = "ameva-runtime"
+version = "1.0.0"
+description = "Unified Next-Gen Hardware Orchestration & AI Acceleration Runtime for Mobile & Edge"
 readme = "README.pypi.md"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Eunho Kim", email = "contact@uno-km.com" }]
-keywords = ["vulkan", "gpu", "android", "termux", "acceleration", "adreno", "mali", "hal", "ameva"]
+keywords = ["vulkan", "opencl", "npu", "cpu-neon", "android", "termux", "acceleration", "adreno", "mali", "hal", "ameva"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -27,21 +27,15 @@ classifiers = [
 ]
 
 [project.scripts]
-ameva-gpu = "ameva_vulkan_runtime.cli:main"
+ameva = "ameva_runtime.cli:main"
+ameva-run = "ameva_runtime.cli:main"
+ameva-gpu = "ameva_runtime.cli:legacy_gpu_main"
 
 [project.urls]
 Homepage = "https://uno-km.vercel.app/lib/vulkan/"
-Repository = "https://github.com/uno-km/ameva-vulkan-runtime"
+Repository = "https://github.com/uno-km/ameva-runtime"
 Documentation = "https://uno-km.vercel.app/lib/vulkan/"
 
-# --------------------------------------------------------------------------
-# Optional extras — 각 모달리티 패키지와의 통합을 위한 선택적 의존성.
-# ameva-vulkan-runtime 자체는 이 의존성 없이도 독립 실행 가능합니다.
-#
-# 설치 예시:
-#   pip install ameva-vulkan-runtime[stt]       # STT 모달리티
-#   pip install ameva-vulkan-runtime[all]       # 전체 6대 모달리티
-# --------------------------------------------------------------------------
 [project.optional-dependencies]
 stt       = ["termux-stt>=1.1.1"]
 diffusion = ["termux-diffusion>=1.3.1"]
@@ -58,17 +52,25 @@ all = [
     "termux-vision>=1.0.0",
 ]
 
+[tool.pytest.ini_options]
+pythonpath = ["python"]
+testpaths = ["python/tests"]
+
 [tool.setuptools]
 package-dir = {"" = "python"}
 
 [tool.setuptools.packages.find]
 where = ["python"]
+exclude = ["tests*", "*tests*"]
+
 
 [tool.setuptools.package-data]
+"ameva_runtime" = [
+    "py.typed",
+]
 "ameva_vulkan_runtime" = [
     "profiles/*.json",
     "lib/*.so",
     "lib/*.dll",
     "py.typed",
 ]
-

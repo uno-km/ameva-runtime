@@ -1,20 +1,22 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="ameva-vulkan-runtime",
-    version="1.2.1",
-    description="SoC-aware adaptive abstraction runtime utilizing device resources for Android Termux",
+    name="ameva-runtime",
+    version="1.0.0",
+    description="Unified Next-Gen Hardware Orchestration & AI Acceleration Runtime for Mobile & Edge",
     long_description=open("README.pypi.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="Eunho Kim",
     author_email="contact@uno-km.com",
-    url="https://uno-km.vercel.app/lib/vulkan/",
+    url="https://github.com/uno-km/ameva-runtime",
     package_dir={"": "python"},
-    packages=find_packages(where="python"),
+    packages=find_packages(where="python", exclude=["tests*", "*tests*"]),
     python_requires=">=3.8",
     entry_points={
         "console_scripts": [
-            "ameva-gpu=ameva_vulkan_runtime.cli:main",
+            "ameva=ameva_runtime.cli:main",
+            "ameva-run=ameva_runtime.cli:main",
+            "ameva-gpu=ameva_runtime.cli:legacy_gpu_main",
         ],
     },
     classifiers=[
