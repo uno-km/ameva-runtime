@@ -12,9 +12,9 @@
     "README.md"
   ],
   "bin": {
-    "ameva": "./bin/cli.js",
-    "ameva-run": "./bin/cli.js",
-    "ameva-gpu": "./bin/cli.js"
+    "ameva": "bin/cli.js",
+    "ameva-run": "bin/cli.js",
+    "ameva-gpu": "bin/cli.js"
   },
   "scripts": {
     "test": "node test.js"
@@ -36,7 +36,6 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/uno-km/ameva-runtime.git"
+    "url": "git+https://github.com/uno-km/ameva-runtime.git"
   }
 }
-
