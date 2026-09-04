@@ -54,7 +54,22 @@ def resolve_model_path(model_arg: str) -> str:
     for c in candidates:
         if os.path.exists(c):
             return os.path.abspath(c)
+
+    # Glob search in standard model folders
+    import glob
+    search_dirs = [
+        os.path.expanduser("~/.termux-llama/models"),
+        "/data/data/com.termux/files/home/.termux-llama/models",
+        os.path.expanduser("~/models"),
+    ]
+    for sdir in search_dirs:
+        if os.path.isdir(sdir):
+            matches = glob.glob(os.path.join(sdir, f"*{model_arg}*.gguf"))
+            if matches:
+                return os.path.abspath(sorted(matches)[0])
+
     return model_arg
+
 
 
 def find_inference_binary() -> Optional[str]:
@@ -64,19 +79,20 @@ def find_inference_binary() -> Optional[str]:
         return found_in_path
 
     search_paths = [
-        "/data/data/com.termux/files/usr/bin/llama-cli",
-        os.path.expanduser("~/.termux-llama/bin/llama-cli"),
-        "/data/data/com.termux/files/home/.termux-llama/bin/llama-cli",
         os.path.expanduser("~/vulkan-llama/bin/llama-cli"),
         "/data/data/com.termux/files/home/vulkan-llama/bin/llama-cli",
+        os.path.expanduser("~/.termux-llama/bin/llama-cli"),
+        "/data/data/com.termux/files/home/.termux-llama/bin/llama-cli",
+        "/data/data/com.termux/files/usr/bin/llama-cli",
         os.path.expanduser("~/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli"),
         "/data/data/com.termux/files/home/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli",
         os.path.expanduser("~/llama.cpp/build/bin/llama-cli"),
         "/data/data/com.termux/files/home/llama.cpp/build/bin/llama-cli",
     ]
     for p in search_paths:
-        if os.path.isfile(p) and os.access(p, os.X_OK):
-            return os.path.abspath(p)
+        real_p = os.path.realpath(p)
+        if os.path.isfile(real_p) and os.access(real_p, os.X_OK):
+            return real_p
     return None
 
 
@@ -85,16 +101,18 @@ def resolve_inference_environment(plan: ExecutionPlan, binary_path: str) -> Dict
     env = os.environ.copy()
     env.update(plan.env_overrides)
 
-    bin_dir = os.path.dirname(os.path.abspath(binary_path))
+    real_bin = os.path.realpath(binary_path)
+    bin_dir = os.path.dirname(real_bin)
     candidate_dirs = [
         "/system/lib64",
-        "/data/data/com.termux/files/usr/lib",
-        bin_dir,
-        os.path.abspath(os.path.join(bin_dir, "..", "lib")),
         os.path.abspath(os.path.join(bin_dir, "..", "ggml", "src")),
         os.path.abspath(os.path.join(bin_dir, "..", "src")),
+        bin_dir,
+        os.path.abspath(os.path.join(bin_dir, "..", "lib")),
         os.path.expanduser("~/vulkan-llama/ggml/src"),
         os.path.expanduser("~/vulkan-llama/src"),
+        os.path.expanduser("~/.termux-llama/lib"),
+        "/data/data/com.termux/files/usr/lib",
     ]
     cur_ld = env.get("LD_LIBRARY_PATH", "")
     valid_paths = [p for p in candidate_dirs if os.path.isdir(p)]
@@ -218,6 +236,12 @@ class AmevaRuntime:
 
         stdout_out, stderr_out = proc.communicate()
         total_time_ms = (time.perf_counter() - t0) * 1000.0
+
+        if proc.returncode != 0:
+            err_detail = stderr_out.strip() if stderr_out.strip() else stdout_out.strip()
+            raise AmevaRuntimeError(
+                f"Inference execution failed (exit code {proc.returncode}):\n{err_detail}"
+            )
 
         full_output = stdout_out + "\n" + stderr_out
 

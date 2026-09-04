@@ -1,11 +1,18 @@
-# AMEVA-Runtime (Node.js & TypeScript)
+# @ameva/runtime
 
 [![npm](https://img.shields.io/npm/v/%40ameva%2Fruntime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
 [![npm downloads](https://img.shields.io/npm/dm/%40ameva%2Fruntime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
 [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
 
-> **모바일 및 엣지 환경을 위한 차세대 통합 온디바이스 하드웨어 오케스트레이션 및 멀티모달 가속 런타임**  
-> *Next-Gen Unified On-Device Hardware Orchestration & Multi-Modal Acceleration Runtime for Mobile & Edge*
+> **Next-Generation Unified On-Device Hardware Orchestration & Multi-Modal Acceleration Runtime for Mobile Node.js & Android Termux**
+
+---
+
+## Overview
+
+`@ameva/runtime` provides enterprise-grade, deterministic hardware orchestration and Vulkan acceleration bindings for Node.js / TypeScript applications running on Android Termux, Linux, and edge appliances.
+
+---
 
 ## Installation
 
@@ -13,53 +20,93 @@
 npm install @ameva/runtime
 ```
 
+---
+
 ## Quickstart
 
 ```typescript
 import { createContext, Doctor } from "@ameva/runtime";
 
+// 1. Run 12-stage automated hardware diagnostic
 const doctor = new Doctor();
 const report = await doctor.runSelfTest();
-console.log(`Topology Status: ${report.overallSuccess}, Hardware: ${report.deviceName}`);
+console.log(`Device: ${report.deviceName} | Status: ${report.overallSuccess ? "PASS" : "FAIL"}`);
 
+// 2. Initialize hardware context with automatic silicon dispatch
 const ctx = await createContext({ device: "auto" });
-console.log(`Runtime Context Initialized on ${ctx.deviceName}`);
-
+console.log(`Initialized backend: ${ctx.deviceName}`);
 ```
 
-## Description
-AMEVA Runtime provides a unified, zero-silent-fallback hardware orchestration engine for generative AI on mobile and edge devices. It automatically resolves vendor divergence, dispatching to native Vulkan hardware offload on Qualcomm Adreno while isolating driver deadlocks on ARM Mali through deterministic Cortex-A78 CPU-NEON multi-threading.
+---
 
-### Empirical Hardware Benchmarks (Qwen2.5-0.5B-Instruct)
+## Empirical Real-Device Benchmarks (Ground Truth)
 
-| Device & SoC | GPU & Driver Architecture | Backend Route | Layer Offload | Generation Speed | Prompt Eval Speed | UI Freeze | Speedup |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Galaxy S25** (Snapdragon 8 Elite) | Qualcomm Adreno 830 (Vulkan 1.3) | **VULKAN** | **25/25 (100% VRAM)** | **35.80 t/s** (27.93 ms/t) | **4.53 t/s** | **0%** | **35.8x** |
-| **Galaxy A35** (Exynos 1380) | ARM Mali-G68 MP5 (Vulkan 1.3) | **CPU-NEON** | **0/25 (Safe Guard)** | **3.55 t/s** (295 ms/t) | **8.05 t/s** | **0%** | Baseline |
-| **Galaxy A35** (Forced Vulkan Test) | ARM Mali-G68 MP5 (vulkan.mali.so) | VULKAN | 25/25 | 0.00 t/s (Deadlock) | - | 100% (Hung) | Failed |
+All metrics were captured directly on live physical consumer hardware running Android Termux with the official `qwen2.5-0.5b-instruct-q4_k_m.gguf` model.
 
-### Technical Rationale for ARM Mali CPU-NEON Fallback
-The proprietary ARM Mali Vulkan driver (`/vendor/lib64/hw/vulkan.mali.so` via `/dev/mali0`) enforces aggressive kernel-level dynamic power management (DVFS) tied to `SurfaceFlinger` display composition. During headless compute dispatches in terminal or CLI environments (lacking an active window swapchain), the Mali driver interprets the absence of display flips as an idle state, downclocking GPU compute cores and failing to signal in-flight completion fences. This causes host threads waiting on `vkWaitForFences` or `vkQueueWaitIdle` to deadlock indefinitely.
+| Device | Processor / SoC | GPU Architecture | Active Backend | Layers in VRAM | Eval Speed (Tokens/s) | Prompt Eval (Tokens/s) | System UI Stability |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Samsung Galaxy S25** | Qualcomm Snapdragon 8 Elite | Qualcomm Adreno 830 | **VULKAN** | **25 / 25 (100%)** | **34.08 t/s** | **4.59 t/s** | **100% Stable (0% Freeze)** |
+| **Samsung Galaxy A35** | Samsung Exynos 1380 | ARM Mali-G68 MP5 | **CPU-NEON (Adaptive)** | **0 / 25 (Shield)** | **4.27 t/s** | **6.44 t/s** | **100% Stable (0% Freeze)** |
+| **Samsung Galaxy A35** (Forced Vulkan) | Samsung Exynos 1380 | ARM Mali-G68 MP5 | VULKAN (No Fallback) | 25 / 25 | **0.00 t/s (Deadlock)** | — | **Unresponsive (Host Hang)** |
 
-To guarantee rock-solid system stability and eliminate device lockups, the **AMEVA SmartRouter** automatically identifies ARM Mali GPUs, bypasses the unstable headless Vulkan path, and dispatches inference to the high-performance ARM Cortex-A78 CPU-NEON cluster.
+---
 
-### CLI Quickstart
+## Live Physical Device Telemetry Logs
+
+### Galaxy S25 (Qualcomm Adreno 830 - Native Vulkan Full Offload)
+
+```text
+Ameva Runtime Version: 1.0.1
+
+=== OFFICIAL INFERENCE RESULT ===
+Generated text: Space in Korean is: "공간" (kakjang)
+Hardware backend: VULKAN
+Token generation speed: 34.08 tokens/sec
+Prompt evaluation speed: 4.59 tokens/sec
+Total latency: 17148.2 ms
+Safety rationale: Vulkan hardware acceleration active on ADRENO (qualcomm). All 99 layers targeted to VRAM.
+```
+
+### Galaxy A35 (ARM Mali-G68 MP5 - Forced Headless Vulkan Deadlock Log)
+
+```text
+ggml_vulkan: Found 1 Vulkan devices:
+Vulkan0: Mali-G68 (Mali-G68) | uma: 1 | fp16: 1 | warp size: 16
+[DRIVER DEADLOCK: Proprietary vulkan.mali.so stops responding during SPIR-V compute pipeline initialization]
+[PID 4690: Consuming 94% CPU in busy-wait loop, 0 tokens generated after 60s timeout]
+```
+
+### Galaxy A35 (ARM Cortex-A78 CPU-NEON - Adaptive Safe Route)
+
+```text
+Space in Korean is: 3.5268041954294...
+
+llama_print_timings:        load time =     834.98 ms
+llama_print_timings: prompt eval time =     776.73 ms /     5 tokens (  155.35 ms per token,     6.44 tokens per second)
+llama_print_timings:        eval time =    3510.69 ms /    15 runs   (  234.05 ms per token,     4.27 tokens per second)
+llama_print_timings:       total time =    4336.22 ms /    20 tokens
+```
+
+---
+
+## Technical Rationale: ARM Mali Driver Quirk
+
+The proprietary ARM Mali Vulkan driver (`/vendor/lib64/hw/vulkan.mali.so`) requires an active display presentation swapchain (`SurfaceFlinger`). In headless CLI environments without an active window, driver power management stalls compute shader execution, dropping fence completion signals.
+
+The **AMEVA SmartRouter** automatically identifies ARM Mali hardware, prevents application hanging, and transparently routes to ARM Cortex CPU-NEON execution clusters.
+
+---
+
+## CLI Utilities
+
 ```bash
-# 1. Automatic hardware diagnosis and profile inspection
-ameva-run doctor
-ameva-run profile
-
-# 2. Dry-run execution plan
-ameva-run plan -m qwen2.5-0.5b
-
-# 3. Direct model execution with automatic hardware acceleration
-ameva-run exec -m qwen2.5-0.5b -p "Space in Korean is:" -n 32
+# Global CLI command bundled with npm package
+npx @ameva/runtime doctor
+npx @ameva/runtime profile
 ```
 
-
-## Documentation
-- [Official Documentation & API Reference](https://uno-km.vercel.app/lib/ameva-vulkan-runtime/)
-- [GitHub Repository](https://github.com/uno-km/ameva-runtime)
+---
 
 ## License
-Apache-2.0 License. Copyright (c) 2026 Eunho Kim (@uno-km).
+
+Distributed under the Apache-2.0 License. Copyright (c) 2026 Eunho Kim (@uno-km).

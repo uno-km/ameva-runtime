@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ameva-runtime"
-version = "1.0.0"
+version = "1.0.1"
 description = "Unified Next-Gen Hardware Orchestration & AI Acceleration Runtime for Mobile & Edge"
 readme = "README.pypi.md"
 requires-python = ">=3.8"
@@ -30,6 +30,8 @@ classifiers = [
 ameva = "ameva_runtime.cli:main"
 ameva-run = "ameva_runtime.cli:main"
 ameva-gpu = "ameva_runtime.cli:legacy_gpu_main"
+ameva-doctor = "ameva_runtime.cli:main"
+ameva-vulkan = "ameva_runtime.cli:main"
 
 [project.urls]
 Homepage = "https://uno-km.vercel.app/lib/vulkan/"
