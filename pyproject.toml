@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ameva-runtime"
-version = "1.0.1"
+version = "1.0.2"
 description = "Unified Next-Gen Hardware Orchestration & AI Acceleration Runtime for Mobile & Edge"
 readme = "README.pypi.md"
 requires-python = ">=3.8"

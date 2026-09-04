@@ -817,7 +817,7 @@ class Doctor:
                             return dict(prof)
                     # Vendor based fallback quirks
                     if vendor_id == 0x13B5 or "mali" in dev_lower:
-                        return {"gpu": "ARM Mali", "memory_alignment_bytes": 128, "status": "VERIFIED_GENERIC"}
+                        return {"gpu": "ARM Mali", "memory_alignment_bytes": 128, "enforce_medium_matmul": True, "status": "VERIFIED_GENERIC"}
                     elif vendor_id == 0x5143 or "adreno" in dev_lower:
                         return {"gpu": "Qualcomm Adreno", "subgroup_control_bypass": True, "status": "VERIFIED_GENERIC"}
                 except Exception as e:

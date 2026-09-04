@@ -1,6 +1,6 @@
 {
   "name": "@ameva/runtime",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Unified on-device hardware orchestration and multi-modal AI acceleration runtime for Mobile Node.js & Android Termux",
   "main": "index.js",
   "types": "index.d.ts",

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-09-05
+
+### Fixed
+- **ARM Mali Valhall MatMul Zero-Stride Infinite Loop Elimination**:
+  - Identified and resolved the critical GLSL shader integer truncation bug in `mul_mm.comp` where devices with subgroup size < 32 (e.g. Mali-G68 with warp 16) calculated `loadstride_b = gl_WorkGroupSize.x * LOAD_VEC_B / BK = 16 * 1 / 32 = 0`.
+  - Prevented the resulting GPU compute shader infinite loop (`for (uint l = 0; l < BN; l += 0)`) and hardware watchdog TDR reset (`VK_ERROR_DEVICE_LOST`).
+  - Added `MaliQuirks::ShouldEnforceMediumMatMulKernel` and `VK_VENDOR_ID_ARM (0x13b5)` pipeline routing to enforce Medium kernels (`_m`, workgroup=128, loadstride=4 > 0).
+  - Achieved **4.44 tokens/sec** on Samsung Galaxy A35 (Exynos 1380, Mali-G68 MP5) with 25/25 layers (100%) GPU offloading and zero CPU fallback.
+
+---
+
 ## [1.0.0] - 2026-09-04
 
 ### Added

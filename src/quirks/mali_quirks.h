@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <cstdint>
 #include <string>
 
@@ -30,7 +30,28 @@ public:
      * @brief Computes aligned row padding size.
      */
     static uint32_t AlignSize(uint32_t size, uint32_t align_bytes);
+
+    /**
+     * @brief Determines whether to enforce the Medium (_m) MatMul compute pipeline.
+     * On ARM Mali GPUs (Valhall, e.g. Mali-G68) with subgroup_size < 32 (typically 16),
+     * the Small (_s) unaligned quantized GEMM shader encounters integer truncation:
+     * loadstride_b = gl_WorkGroupSize.x * LOAD_VEC_B / BK = 16 * 1 / 32 = 0,
+     * producing an infinite GPU loop: `for (uint l = 0; l < BN; l += 0)`.
+     * Enforcing the Medium (_m) pipeline with workgroup_size = 128 guarantees loadstride_b = 4 > 0,
+     * completely eliminating GPU TDR resets and VK_ERROR_DEVICE_LOST.
+     * @param subgroup_size Vulkan subgroup size (e.g. 16 on Mali)
+     * @param m Tensor M dimension
+     * @param n Tensor N dimension
+     * @return true to enforce Medium kernel, false to permit Small kernel.
+     */
+    static bool ShouldEnforceMediumMatMulKernel(uint32_t subgroup_size, uint32_t m, uint32_t n);
+
+    /**
+     * @brief Returns safe workgroup denomination for quantized matmul on Mali.
+     */
+    static uint32_t GetSafeWorkgroupDenom(uint32_t subgroup_size);
 };
 
 } // namespace quirks
 } // namespace ameva
+
