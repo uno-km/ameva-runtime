@@ -4,6 +4,13 @@
   "description": "Unified on-device hardware orchestration and multi-modal AI acceleration runtime for Mobile Node.js & Android Termux",
   "main": "index.js",
   "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin",
+    "lib",
+    "README.md"
+  ],
   "bin": {
     "ameva": "./bin/cli.js",
     "ameva-run": "./bin/cli.js",
