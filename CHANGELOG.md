@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-09-05
+
+### Changed
+- Enforced strict Fail-Fast execution policy across all modality adapters.
+- Synchronized ecosystem integration with `@ameva/runtime` v2.0.1 specification.
+- Enhanced Doctor hardware diagnostics and ARM Mali Valhall / Qualcomm Adreno dynamic routing.
+
+---
+
 ## [2.0.0] - 2026-09-05
 
 ### Major Architecture Milestone: Single Package Unification, Mali-Valhall Acceleration & STT 2.26x Speedup

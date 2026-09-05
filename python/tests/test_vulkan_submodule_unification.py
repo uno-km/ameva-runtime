@@ -20,9 +20,10 @@ import ameva_runtime.vulkan.platform as vulkan_platform
 
 class TestVulkanSubmoduleArchitecture(unittest.TestCase):
     def test_version_consistency(self):
-        """Verify unified version 2.0.0 across all namespaces."""
-        self.assertEqual(ameva_runtime.__version__, "2.0.0")
-        self.assertEqual(vulkan.__version__, "2.0.0")
+        """Verify unified version across all namespaces."""
+        from ameva_runtime._version import __version__ as expected_ver
+        self.assertEqual(ameva_runtime.__version__, expected_ver)
+        self.assertEqual(vulkan.__version__, expected_ver)
 
     def test_submodule_exports(self):
         """Verify that ameva_runtime.vulkan correctly exports all required acceleration classes."""
