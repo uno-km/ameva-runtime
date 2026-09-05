@@ -1,4 +1,4 @@
-﻿# 🔗 Cross-Modal Multi-Engine Integration Guide
+# 🔗 Cross-Modal Multi-Engine Integration Guide
 
 ## 1. Unified Architecture Integration Flow
 
@@ -28,7 +28,7 @@
 
 ### Whisper STT 가속 연동:
 ```python
-import ameva_vulkan_runtime as avr
+from ameva_runtime import vulkan as avr
 import termux_stt
 
 # 1. Vulkan 가속 백엔드 확보
@@ -42,7 +42,7 @@ print("Transcribed:", result.text)
 
 ### Stable Diffusion 가속 연동:
 ```python
-import ameva_vulkan_runtime as avr
+from ameva_runtime import vulkan as avr
 import termux_diffusion as td
 
 # Vulkan 런타임 진단 후 고속 생성

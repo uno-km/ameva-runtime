@@ -33,7 +33,12 @@ def is_available() -> bool:
     """현재 하드웨어에서 Vulkan 가속이 지원되는지 확인합니다."""
     return Doctor().quick_probe()
 
+def get_device_name() -> str | None:
+    """Returns physical Vulkan GPU device name via official doctor probe."""
+    return Doctor().quick_probe_device()
+
 __all__ = [
+    "get_device_name",
     "VulkanContext",
     "create_context",
     "get_or_create_context",

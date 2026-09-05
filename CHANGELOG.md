@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - SmartRouter dynamically negotiates between Qualcomm KGSL and ARM Bionic ICD drivers without regression or cross-contamination.
 - **PyTorch-Style Single Package Architecture**:
   - Consolidated repository and distribution under `ameva-runtime` (v2.0.0), housing specialized Vulkan acceleration in `from ameva_runtime import vulkan` with dynamic single-source-of-truth versioning (`_version.py`).
+- **Breaking Changes: Pure Submodule Unification & Legacy Namespace Deprecation**:
+  - The standalone `ameva_vulkan_runtime` top-level namespace is fully deprecated and consolidated into `from ameva_runtime import vulkan`.
+  - All ecosystem consumers and sibling packages must import directly via `from ameva_runtime import vulkan` or `import ameva_runtime as ar; ar.vulkan`.
+  - Phased out transitional shim layer in favor of a clean, unfragmented single-package architecture (`name = "ameva-runtime"`).
 - **Complete Sibling Ecosystem Migration**:
   - Migrated `termux-stt`, `termux-vision`, `termux-llamacpp`, `termux-diffusion`, `termux-bitnet`, `termux-tts`, and `termux-train` to directly import `from ameva_runtime import vulkan`.
 - **6-Modality Vulkan Acceleration Roadmap**:
@@ -54,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **ARM Mali Headless Fence Deadlock Isolation & Guard**: Isolated the proprietary ARM Mali driver power-management downclocking bug (`vkWaitForFences` hang in headless CLI) and implemented automated `SmartRouter` fallback to Cortex-A78 CPU-NEON multi-threading (3.55 tokens/sec, 0% freeze).
 - **Direct Python Model Execution**: Introduced `ameva.run()` and `AmevaRuntime.execute()` top-level APIs returning rich telemetry (`tokens_per_second`, `latency_ms`, `eval_tokens`).
 - **Universal Multi-Command CLI**: Added `ameva-run` with `doctor`, `profile`, `plan`, `exec`, and `benchmark` commands.
-- **Zero-Breaking Backward Compatibility**: 100% transparent shim layer for legacy `from ameva_vulkan_runtime import VulkanContext, create_context`.
+- **Zero-Breaking Backward Compatibility (v1.x Transitional)**: Provided transitional shim layer for legacy `from ameva_vulkan_runtime import VulkanContext, create_context` (phased out in v2.0.0).
 
 ---
 

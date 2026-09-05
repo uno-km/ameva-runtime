@@ -167,7 +167,16 @@ def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
 
     # 4순위: 기존 경로 중복 없이 병합
     existing_parts = [p for p in current_ld.split(":") if p]
-    final_dirs = ordered_dirs + [p for p in existing_parts if p not in ordered_dirs]
-
     env["LD_LIBRARY_PATH"] = ":".join(final_dirs)
+
+    # Mali GPU 쿼크: ARM Mali Valhall 아키텍처에서 양자화 GEMM 무한 루프/데드락 방지
+    try:
+        from ..platform import detect_soc_environment
+        soc = detect_soc_environment()
+        if "mali" in str(soc.gpu_family).lower() or soc.vendor == "samsung":
+            env.setdefault("GGML_VK_FORCE_MEDIUM_MATMUL", "1")
+            env.setdefault("GGML_VK_DISABLE_F16", "1")
+    except Exception:
+        pass
+
     return env

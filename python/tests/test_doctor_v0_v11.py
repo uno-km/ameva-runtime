@@ -23,7 +23,10 @@ class TestDoctorV0V11(unittest.TestCase):
     def tearDown(self):
         p = Path(__file__).parent.parent.parent / "test_state_doctor.json"
         if p.exists():
-            p.unlink()
+            try:
+                p.unlink()
+            except OSError:
+                pass
 
     def test_12_stage_diagnostic_no_false_pass(self):
         """실제 Vulkan API 호출 기반 진단 — 거짓 PASS 를 절대 반환하지 않음을 검증."""
