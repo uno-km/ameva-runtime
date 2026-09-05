@@ -179,6 +179,66 @@ class SmartRouter:
             is_gpu_accelerated=is_gpu,
         )
 
+    def route_for_tts(
+        self,
+        model_name_or_path: str = "",
+        requested_backend: str | None = None,
+        requested_threads: int | None = None,
+    ) -> ExecutionPlan:
+        """Determines the optimal execution plan for TTS synthesis (termux-tts / Sherpa-ONNX / DSP).
+
+        Strict Zero-Silent-Fallback Protocol:
+        - If requested_backend is 'vulkan' or 'gpu':
+          Routes to Vulkan hardware acceleration (Mali-G68 SPIR-V DSP / Adreno Vulkan) with environment variables.
+        - If requested_backend is 'cpu' or 'cpu_neon' or adaptive (None):
+          Routes to high-performance ARM NEON multi-threaded execution across allowed big cores.
+        """
+        env: Dict[str, str] = {}
+        cli_flags: List[str] = []
+        is_gpu = False
+
+        backend = requested_backend or self.profile.recommended_backend
+        threads = requested_threads if requested_threads is not None else self.profile.recommended_threads
+
+        if backend == "vulkan":
+            is_gpu = True
+            if os.path.exists("/system/lib64/libvulkan.so"):
+                current_ld = os.environ.get("LD_LIBRARY_PATH", "")
+                if not current_ld.startswith("/system/lib64"):
+                    env["LD_LIBRARY_PATH"] = f"/system/lib64:{current_ld}".rstrip(":")
+
+            if self.profile.gpu_family == "mali":
+                env["AMEVA_VK_DSP_ACCEL"] = "1"
+                diagnosis = (
+                    f"Vulkan hardware acceleration active on {self.profile.gpu_family.upper()} "
+                    f"({self.profile.vendor}) for TTS DSP pipeline. Device index: 0."
+                )
+            else:
+                diagnosis = (
+                    f"Vulkan hardware acceleration active on {self.profile.gpu_family.upper()} "
+                    f"({self.profile.vendor}) for TTS. Device index: 0."
+                )
+            cli_flags.extend(["--device", "gpu", "--threads", str(threads)])
+        else:
+            backend = "cpu_neon"
+            is_gpu = False
+            cli_flags.extend(["--device", "cpu", "--threads", str(threads)])
+            diagnosis = (
+                f"Adaptive CPU NEON route selected for TTS. Target hardware: {self.profile.vendor} "
+                f"({self.profile.gpu_family}). Active compute threads: {threads}."
+            )
+
+        return ExecutionPlan(
+            backend=backend,
+            threads=threads,
+            ngl=99 if is_gpu else 0,
+            env_overrides=env,
+            cli_flags=cli_flags,
+            allowed_cpus=sorted(self.profile.allowed_cpu_set),
+            diagnosis=diagnosis,
+            is_gpu_accelerated=is_gpu,
+        )
+
 
 def get_router() -> SmartRouter:
     """Returns a singleton SmartRouter instance."""

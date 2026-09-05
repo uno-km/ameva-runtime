@@ -110,6 +110,53 @@ class TestSiliconRoutingS25AndA35(unittest.TestCase):
         self.assertTrue(mali_prof.get("enforce_medium_matmul", False))
         self.assertFalse(mali_prof.get("subgroup_control_bypass", False))
 
+    def test_a35_tts_routing(self):
+        """Verify SmartRouter produces proper ExecutionPlan for TTS on Galaxy A35."""
+        from ameva_runtime.adapters.tts import TtsAdapter
+        a35_profile = HardwareProfile(
+            vendor="samsung",
+            soc_model="s5e8835",
+            gpu_family="mali",
+            has_kgsl_node=False,
+            has_mali_node=True,
+            total_cpu_cores=8,
+            allowed_cpu_set={0, 1, 2, 3, 4, 5, 6, 7},
+            big_core_indices=[4, 5, 6, 7],
+            little_core_indices=[0, 1, 2, 3],
+            recommended_threads=4,
+            recommended_backend="vulkan",
+            hardware_hazard=None,
+            diagnosis_reason="Exynos 1380 Mali-G68 Active",
+        )
+        router = SmartRouter(a35_profile)
+        # 1. Vulkan route
+        vk_plan = router.route_for_tts(requested_backend="vulkan")
+        self.assertEqual(vk_plan.backend, "vulkan")
+        self.assertTrue(vk_plan.is_gpu_accelerated)
+        self.assertEqual(vk_plan.threads, 4)
+        self.assertEqual(vk_plan.env_overrides.get("AMEVA_VK_DSP_ACCEL"), "1")
+        self.assertIn("--device", vk_plan.cli_flags)
+        self.assertIn("gpu", vk_plan.cli_flags)
+
+        # 2. CPU route
+        cpu_plan = router.route_for_tts(requested_backend="cpu")
+        self.assertEqual(cpu_plan.backend, "cpu_neon")
+        self.assertFalse(cpu_plan.is_gpu_accelerated)
+        self.assertEqual(cpu_plan.threads, 4)
+
+        # 3. TtsAdapter binding
+        class MockEngine:
+            device = "auto"
+            threads = 1
+            backend = "unknown"
+
+        mock_eng = MockEngine()
+        binding = TtsAdapter.bind(engine=mock_eng, profile=a35_profile, requested_backend="vulkan")
+        self.assertEqual(mock_eng.device, "vulkan")
+        self.assertEqual(mock_eng.threads, 4)
+        self.assertEqual(mock_eng.backend, "vulkan")
+        self.assertEqual(binding.status, "BOUND_VULKAN")
+
 
 if __name__ == "__main__":
     unittest.main()
