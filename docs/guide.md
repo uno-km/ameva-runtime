@@ -1,3 +1,3 @@
-# ameva-vulkan-runtime Engineering Guide
+# ameva-runtime Engineering Guide
 
 Deep-dive technical guide.

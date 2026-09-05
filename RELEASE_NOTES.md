@@ -5,6 +5,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [v2.0.1] - 2026-09-05
+### Zero-Silent-Fallback Hardening & Ecosystem Alignment
+
+#### Highlights
+- **Strict Fail-Fast Enforcement**: Eradicated all silent fallback return paths and unhandled exception swallowing across sibling modality adapters.
+- **Unified Distribution**: Full synchronization across PyPI (`pip install ameva-runtime`) and npm (`npm install @ameva/runtime`).
+- **Sibling Ecosystem Synchronized**: `termux-bitnet` (1.1.4), `termux-diffusion` (1.4.4), `termux-llamacpp` (1.2.3), `termux-stt` (1.1.6), `termux-train` (1.1.4), `termux-tts` (1.1.4), `termux-vision` (1.1.3), `termux-aichain` (1.1.3).
+
+#### Distribution
+- PyPI: `pip install ameva-runtime`
+- npm: `npm install @ameva/runtime`
+- Web Docs: [https://uno-km.vercel.app/lib/vulkan/](https://uno-km.vercel.app/lib/vulkan/)
+
+---
+
 ## [v2.0.0] - 2026-09-05
 ### Major Architecture Milestone — Single Package Unification, Mali Valhall MatMul Loop Elimination & STT 2.26x Acceleration
 
@@ -46,6 +61,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Cross-Platform Dual Bindings**: Full Python CFFI/ctypes and Node.js/TypeScript N-API SDK.
 
 #### 📦 Distribution
-- PyPI: `pip install ameva-vulkan-runtime`
-- npm: `npm install ameva-vulkan-runtime`
+- PyPI: `pip install ameva-runtime`
+- npm: `npm install @ameva/runtime`
 - Web Docs: [https://uno-km.vercel.app/lib/vulkan/](https://uno-km.vercel.app/lib/vulkan/)

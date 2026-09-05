@@ -2,7 +2,7 @@
 
 ## 1. Unified Architecture Integration Flow
 
-`ameva-vulkan-runtime`은 하부 C++ HAL 라이브러리(`libameva_vulkan.so`)를 단일 진실 공급원(SSOT)으로 제공하며, 상위의 다양한 오픈소스 모달리티 엔진이 동일한 Vulkan 인스턴스를 공유합니다.
+`ameva-runtime`은 하부 C++ HAL 라이브러리(`libameva_vulkan.so`)를 단일 진실 공급원(SSOT)으로 제공하며, 상위의 다양한 오픈소스 모달리티 엔진이 동일한 Vulkan 인스턴스를 공유합니다.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
