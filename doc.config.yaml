@@ -6,6 +6,11 @@ release_name: Unified On-Device Hardware Orchestration & Multi-Modal AI Accelera
 license: Apache-2.0
 platform: Android ARM64 / Qualcomm Adreno, ARM Mali, Linux & Edge
 github_repo_url: https://github.com/uno-km/ameva-runtime
+custom_pages:
+  - slug: "six-modality-roadmap"
+    title_en: "6-Modality Technical Paper"
+    title_ko: "6-모달리티 통합 아키텍처 논문"
+    file: "lib/vulkan/six-modality-roadmap.html"
 tagline_ko: 모바일 및 엣지 환경을 위한 차세대 통합 온디바이스 하드웨어 오케스트레이션 및 6대 멀티모달 가속 런타임
 tagline_en: Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime for Mobile & Edge
 tagline_ja: モバイルおよびエッジ環境向けの次世代統合オンデバイスハードウェアオーケストレーションおよび6大マルチモーダルアクセラレーションランタイム
