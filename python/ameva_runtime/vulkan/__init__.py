@@ -1,8 +1,9 @@
 """
 AMEVA Unified Vulkan Acceleration Runtime & SDK
 """
-__version__ = "1.2.0"
+from ameva_runtime._version import __version__
 __author__ = "Eunho Kim <contact@uno-km.com>"
+
 
 from .core import VulkanContext, create_context, get_or_create_context
 from .doctor import Doctor, DiagnosticReport, StageReport
@@ -24,6 +25,9 @@ from .adapters import (
     TtsAdapter,
     VisionAdapter,
 )
+# Re-export modern v2.0.0 Hardware Orchestrator & SmartRouter for unified single-import convenience
+from ameva_runtime.router import SmartRouter, ExecutionPlan, get_router
+from ameva_runtime.detector import HardwareProfile, detect_hardware
 
 def is_available() -> bool:
     """현재 하드웨어에서 Vulkan 가속이 지원되는지 확인합니다."""
@@ -61,4 +65,10 @@ __all__ = [
     "TtsAdapter",
     "VisionAdapter",
     "is_available",
+    # v2.0.0 Modern Orchestrator
+    "SmartRouter",
+    "ExecutionPlan",
+    "get_router",
+    "HardwareProfile",
+    "detect_hardware",
 ]

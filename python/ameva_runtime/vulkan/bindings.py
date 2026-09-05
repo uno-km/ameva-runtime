@@ -37,6 +37,7 @@ def load_native_lib() -> Optional[ctypes.CDLL]:
     search_dirs = [
         Path(__file__).parent,
         Path(__file__).parent / "lib",
+        Path(__file__).parent.parent.parent.parent / "build",
         Path(__file__).parent.parent.parent / "build",
         Path("/data/data/com.termux/files/usr/lib"),
         Path.home() / ".local" / "lib",

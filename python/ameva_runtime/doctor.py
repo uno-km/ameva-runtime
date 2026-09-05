@@ -43,6 +43,7 @@ class DiagnosticReport:
     hazard: Optional[str] = None
     allowed_cpus: List[int] = field(default_factory=list)
     diagnosis_reason: str = ""
+    profile_quirks: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -180,6 +181,7 @@ class Doctor:
             hazard=p.hardware_hazard,
             allowed_cpus=p.allowed_cpus,
             diagnosis_reason=p.diagnosis_reason,
+            profile_quirks={"enforce_medium_matmul": True, "memory_alignment_bytes": 128} if "mali" in p.gpu_family.lower() else ({"subgroup_control_bypass": True} if "adreno" in p.gpu_family.lower() else {}),
         )
 
     def run_diagnostics(self) -> DiagnosticReport:

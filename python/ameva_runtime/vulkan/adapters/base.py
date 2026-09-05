@@ -148,14 +148,17 @@ def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
 
     ordered_dirs = []
 
-    # 1순위: Termux 네이티브 C++ 런타임 보호
-    termux_usr_lib = "/data/data/com.termux/files/usr/lib"
-    if os.path.isdir(termux_usr_lib):
-        ordered_dirs.append(termux_usr_lib)
-
-    # 2순위: 실제 스마트폰 시스템 Vulkan 드라이버 디렉토리
+    # 1순위: 실제 스마트폰 시스템 Vulkan 드라이버 디렉토리 (/system/lib64)
+    # Android 15 Bionic libunwindstack 심볼 충돌 방지: system liblzma가 Termux liblzma보다 먼저 바인딩되어야 함
     if discovered_driver_dir and discovered_driver_dir not in ordered_dirs:
         ordered_dirs.append(discovered_driver_dir)
+    elif os.path.isdir("/system/lib64") and "/system/lib64" not in ordered_dirs:
+        ordered_dirs.append("/system/lib64")
+
+    # 2순위: Termux 네이티브 C++ 런타임
+    termux_usr_lib = "/data/data/com.termux/files/usr/lib"
+    if os.path.isdir(termux_usr_lib) and termux_usr_lib not in ordered_dirs:
+        ordered_dirs.append(termux_usr_lib)
 
     # 3순위: 번들 llama/runtime 라이브러리
     llama_lib = str(Path.home() / ".termux-llama/current/lib")

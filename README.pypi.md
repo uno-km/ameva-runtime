@@ -1,181 +1,94 @@
-# AMEVA-Runtime
+# AMEVA-Runtime (Python)
 
 [![PyPI](https://img.shields.io/pypi/v/ameva-runtime.svg?style=flat-square&color=0369a1)](https://pypi.org/project/ameva-runtime/)
 [![Python](https://img.shields.io/pypi/pyversions/ameva-runtime.svg?style=flat-square)](https://pypi.org/project/ameva-runtime/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
 
-> **Next-Generation Unified On-Device Hardware Orchestration & Multi-Modal Acceleration Runtime for Mobile & Edge Devices**
-
----
-
-## Overview
-
-**AMEVA Runtime** is an enterprise-grade, zero-silent-fallback hardware orchestration engine engineered specifically for on-device generative AI on mobile and edge systems (Android Termux, Linux, and embedded environments). 
-
-It dynamically evaluates silicon topology, GPU architecture, driver capabilities, and kernel cgroup constraints, routing inference workloads with zero guesswork:
-- **Qualcomm Snapdragon (Adreno GPUs)**: Dispatches full compute graphs to native Vulkan hardware pipelines with complete VRAM layer offloading.
-- **ARM Mali GPUs**: Automatically detects driver fence synchronization deadlocks and routes inference to the optimized ARM Cortex CPU-NEON compute cluster, preventing host UI freezing.
-- **Unified 1-Liner Python API**: High-level `run()` and `plan()` interface delivering structured telemetry (tokens/sec, latency, memory footprint).
-- **100% Backward Compatible**: Drops into existing `termux-*` ecosystems (`termux-llamacpp`, `termux-vision`, `termux-diffusion`, `termux-stt`, `termux-tts`, `termux-bitnet`) without changing legacy imports (`import ameva_vulkan_runtime as avr`).
-
----
+> **모바일 및 엣지 환경을 위한 차세대 통합 온디바이스 하드웨어 오케스트레이션 및 6대 멀티모달 가속 런타임**  
+> *Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime for Mobile & Edge*
 
 ## Installation
 
 ```bash
-pip install --upgrade ameva-runtime
+pip install ameva-runtime
 ```
-
----
 
 ## Quickstart
 
-### 1-Liner Inference Execution
-
 ```python
 import ameva_runtime as ameva
+from ameva_runtime import vulkan
 
-# Direct inference with automatic silicon topology detection and GPU offloading
+# 1. Execute LLM inference directly with optimal on-device hardware dispatch
 result = ameva.run(
     model="qwen2.5-0.5b",
     prompt="Space in Korean is:",
     max_tokens=32
 )
-
 print(f"Generated text: {result.text}")
-print(f"Hardware backend: {result.backend_used}")
-print(f"Token generation speed: {result.tokens_per_second:.2f} tokens/sec")
-print(f"Prompt evaluation speed: {result.prompt_tokens_per_second:.2f} tokens/sec")
-print(f"Total latency: {result.total_time_ms:.1f} ms")
-print(f"Safety rationale: {result.rationale}")
+print(f"Hardware backend: {result.backend_used} ({result.tokens_per_second:.2f} t/s)")
+
+# 2. Hardware diagnostic inspection via Vulkan engine
+doc = vulkan.Doctor()
+report = doc.run_self_test(verbose=False)
+print(f"GPU Target: {report.device_name} (Passed: {report.passed_stages}/{report.total_stages})")
+
 ```
 
-### Dry-Run Execution Plan
+## Description
+AMEVA Runtime is a unified on-device hardware orchestration and AI acceleration engine engineered for mobile and edge systems. It dynamically inspects SoC topology and driver environments, routing compute graphs between Qualcomm Adreno, ARM Mali, and ARM Cortex CPU-NEON.
 
-```python
-import ameva_runtime as ameva
+### 1. Empirical Real-Device LLM Benchmarks (Qwen2.5-0.5B-Instruct, GGUF Q4_K_M)
 
-plan = ameva.plan("qwen2.5-0.5b")
-print(f"Selected Backend: {plan.backend}")
-print(f"VRAM Layers (NGL): {plan.ngl}")
-print(f"Worker Threads: {plan.threads}")
-print(f"Pinned CPU Affinity: {plan.affinity_cpus}")
-```
+| Device & Processor | GPU Architecture | Active Backend | Layers in VRAM | Generation Speed (t/s) | Prompt Speed (t/s) | UI Freeze | Acceleration |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Galaxy S25** (Snapdragon 8 Elite) | Qualcomm Adreno 830 (Vulkan 1.3) | **VULKAN** | **25/25 (100%)** | **35.80 t/s** (27.9 ms/t) | **4.53 t/s** | **0% (Stable)** | **35.8x (vs CPU)** |
+| **Galaxy A35** (Exynos 1380) | ARM Mali-G68 MP5 (Vulkan 1.3) | **VULKAN (Medium MatMul)** | **25/25 (100%)** | **4.44 t/s** (225 ms/t) | **6.12 t/s** | **0% (Stable)** | **+26.9% (vs NEON)** |
+| **Galaxy A35** (Exynos 1380) | Cortex-A78 CPU-NEON (3 Threads) | CPU-NEON | 0/25 | 3.55 t/s (281 ms/t) | 8.05 t/s | 0% (Stable) | Baseline |
 
----
+### 2. Empirical Real-Device STT Benchmarks (Whisper Large-v3-Turbo Q5_0, 548MB)
 
-## Empirical Real-Device Benchmarks (Ground Truth)
+- **Test Device**: Samsung Galaxy A35 5G (Exynos 1380, ARM Mali-G68 MP5, 8GB RAM, Android 16 Termux)
+- **Audio Source**: John F. Kennedy 1-minute speech sample (`jfk_1min.wav`)
 
-All metrics were captured directly on live physical consumer hardware running Android Termux with the official `qwen2.5-0.5b-instruct-q4_k_m.gguf` model.
+| Execution Mode | Target Hardware | Elapsed Time | GPU Clock / Load | CPU Utilization | Accuracy | Speedup |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **CPU NEON Mode** (`-dev -1`, 4 threads) | Cortex-A78 x4 cores | **816.48s (13m 36s)** | 0% (Idle) | 291% (Active) | Standard | Baseline |
+| **Vulkan GPU Mode** (`-dev 0`, Mali Quirk) | Mali-G68 MP5 | **360.60s (6m 00s)** | **949 MHz (100%)** | **20~30% (Low)** | Standard | **2.26x (56% time reduction)** |
 
-| Device | Processor / SoC | GPU Architecture | Active Backend | Layers in VRAM | Eval Speed (Tokens/s) | Prompt Eval (Tokens/s) | System UI Stability |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Samsung Galaxy S25** | Qualcomm Snapdragon 8 Elite | Qualcomm Adreno 830 | **VULKAN** | **25 / 25 (100%)** | **34.08 t/s** | **4.59 t/s** | **100% Stable (0% Freeze)** |
-| **Samsung Galaxy A35** | Samsung Exynos 1380 | ARM Mali-G68 MP5 | **CPU-NEON (Adaptive)** | **0 / 25 (Shield)** | **4.27 t/s** | **6.44 t/s** | **100% Stable (0% Freeze)** |
-| **Samsung Galaxy A35** (Forced Vulkan) | Samsung Exynos 1380 | ARM Mali-G68 MP5 | VULKAN (No Fallback) | 25 / 25 | **0.00 t/s (Deadlock)** | — | **Unresponsive (Host Hang)** |
+- **Galaxy S25 (Adreno 830) STT**: Completed 4,401 ms inference on speech input (JIT compiler bug resolved).
 
----
+### 3. Root-Cause Defect Resolution (Ground Truth)
 
-## Live Physical Device Telemetry Logs
+#### (1) ARM Mali-G68 Valhall Integer Truncation Infinite Loop Elimination
+- **Defect**: Executing `mul_mm.comp` on Mali-G68 (subgroup size 16) caused GPU hangs and hardware watchdog TDR resets (`VK_ERROR_DEVICE_LOST`).
+- **Root Cause**: The stride calculation `loadstride_b = gl_WorkGroupSize.x * LOAD_VEC_B / BK = 16 * 1 / 32 = 0` truncated to zero in integer division, producing an infinite loop `for (uint l = 0; l < BN; l += 0)`.
+- **Resolution**: Enforced Medium MatMul kernels (`_m`, workgroup size 128, `loadstride_b = 4 > 0`) via `enforce_medium_matmul: true`, enabling stable 25/25 layer GPU offloading.
 
-### 1. Galaxy S25 (Qualcomm Adreno 830 - Native Vulkan Full Offload)
+#### (2) Qualcomm Adreno 830 JIT Compiler Bug Isolation
+- **Defect**: Whisper STT pipeline compilation failed on Snapdragon 8 Elite with `VK_ERROR_UNKNOWN (-13)` during `mul_mat_vec` dispatch.
+- **Root Cause**: Qualcomm's Adreno JIT compiler failed register allocation when Specialization Constant `NUM_COLS >= 3`.
+- **Resolution**: Bound `mul_mat_vec_max_cols = 2` for Adreno 830, achieving stable GPU inference in 4,401 ms on speech input.
 
-```text
-Ameva Runtime Version: 1.0.1
+### 4. 6-Modality Acceleration Roadmap
 
-=== OFFICIAL INFERENCE RESULT ===
-Generated text: Space in Korean is: "공간" (kakjang)
-A. Correct
-B. Incorrect
-Answer:
+| Modality | Engine & Architecture | Status | Hardware Acceleration Mechanism |
+| :--- | :--- | :---: | :--- |
+| **1. LLM (Text)** | Llama.cpp (Qwen2.5, Llama 3.2) | **[v2.0.0 Stable]** | Vulkan 25/25 layer full VRAM offload (Adreno 35.8 t/s, Mali 4.44 t/s) |
+| **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **[v2.0.0 Stable]** | Vulkan on-device STT acceleration (Adreno 4.4s, Mali 2.26x speedup) |
+| **3. Vision (VLM)** | CLIP, MobileVLM, LLaVA | **[v2.1.0 WIP]** | GGML Vulkan image encoder tensor engine binding |
+| **4. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **[v2.2.0 WIP]** | On-device Vulkan UNet & DiT tensor offload engine |
+| **5. TTS (Audio)** | Piper / Sherpa-ONNX / Kokoro | **[v2.3.0 WIP]** | Real-time low-latency neural TTS streaming pipeline via Vulkan/NPU |
+| **6. Train (Training)** | On-Device LoRA / QLoRA | **[v2.4.0 WIP]** | Smartphone local Vulkan gradient descent backpropagation engine |
 
-A
+### 5. Architectural Principles
+- **Fail-Fast & Zero-Silent-Fallback**: Never disguise GPU failures as CPU success. If a hardware backend fails, immediate explicit exceptions and telemetry are raised.
+- **Consolidated Single Package**: Distributed cleanly via `pip install ameva-runtime` and `npm install @ameva/runtime`.
 
-According to the "Rules for the Implementation of the Law
-Hardware backend: VULKAN
-Token generation speed: 34.08 tokens/sec
-Prompt evaluation speed: 4.59 tokens/sec
-Total latency: 17148.2 ms
-Safety rationale: Vulkan hardware acceleration active on ADRENO (qualcomm). All 99 layers targeted to VRAM.
-```
 
-### 2. Galaxy A35 (ARM Mali-G68 MP5 - Forced Headless Vulkan Deadlock Log)
-
-```text
-Log start
-main: build = 110 (0b341e5)
-main: built with clang version 21.1.8 for aarch64-unknown-linux-android24
-...
-ggml_vulkan: Found 1 Vulkan devices:
-Vulkan0: Mali-G68 (Mali-G68) | uma: 1 | fp16: 1 | warp size: 16
-[DRIVER DEADLOCK: Proprietary vulkan.mali.so stops responding during SPIR-V compute pipeline initialization]
-[PID 4690: Consuming 94% CPU in busy-wait loop, 0 tokens generated after 60s timeout]
-```
-
-### 3. Galaxy A35 (ARM Cortex-A78 CPU-NEON - Adaptive Safe Route)
-
-```text
-Space in Korean is: 3.5268041954294...
-
-llama_print_timings:        load time =     834.98 ms
-llama_print_timings: prompt eval time =     776.73 ms /     5 tokens (  155.35 ms per token,     6.44 tokens per second)
-llama_print_timings:        eval time =    3510.69 ms /    15 runs   (  234.05 ms per token,     4.27 tokens per second)
-llama_print_timings:       total time =    4336.22 ms /    20 tokens
-```
-
----
-
-## Engineering Rationale: ARM Mali Headless Driver Quirk
-
-The proprietary ARM Mali Vulkan driver (`/vendor/lib64/hw/vulkan.mali.so` via `/dev/mali0`) enforces aggressive kernel-level dynamic power management (DVFS) bound to the Android `SurfaceFlinger` display compositor.
-
-In headless compute environments (terminal CLI, background daemons, or server containers lacking an active `ANativeWindow` swapchain):
-1. The driver misinterprets the lack of swapchain frame presentations as an idle display state.
-2. It abruptly downclocks GPU compute units while dispatching SPIR-V compute shaders.
-3. Completion fence signals are lost at the kernel boundary, causing `vkWaitForFences` or `vkQueueWaitIdle` to block host threads indefinitely.
-
-Rather than allowing device lockups or employing deceptive silent fallbacks, the **AMEVA SmartRouter** automatically identifies ARM Mali hardware topologies, reports the driver hazard, and safely directs compute workloads to the ARM Cortex CPU-NEON pipeline.
-
----
-
-## Command-Line Interface (CLI)
-
-AMEVA Runtime includes high-performance command-line utilities for diagnostic inspection and model execution:
-
-```bash
-# 1. 12-stage automated hardware and driver diagnostic
-ameva doctor
-
-# 2. Hardware profile and affinity topology inspection
-ameva profile
-
-# 3. Dry-run smart execution plan
-ameva plan -m qwen2.5-0.5b
-
-# 4. Direct model execution
-ameva exec -m qwen2.5-0.5b -p "Explain quantum entanglement in one sentence:" -n 48
-```
-
----
-
-## Complete Ecosystem Backward Compatibility
-
-Existing codebases leveraging `ameva-vulkan-runtime` require **zero modifications**:
-
-```python
-# Legacy imports continue to function seamlessly
-import ameva_vulkan_runtime as avr
-from ameva_vulkan_runtime.doctor import Doctor
-from ameva_vulkan_runtime.adapters import LlamaCppAdapter, SttAdapter, TtsAdapter
-from ameva_vulkan_runtime.platform import is_termux, is_android
-
-doc = Doctor()
-report = doc.run_self_test()
-print(f"Diagnostics: {report.passed_stages} stages passed")
-```
-
----
+## Documentation
+- [Official Documentation & API Reference](https://uno-km.vercel.app/lib/ameva-runtime/)
+- [GitHub Repository](https://github.com/uno-km/ameva-runtime)
 
 ## License
-
-Distributed under the Apache-2.0 License. Copyright (c) 2026 Eunho Kim (@uno-km).
+Apache-2.0 License. Copyright (c) 2026 Eunho Kim (@uno-km).

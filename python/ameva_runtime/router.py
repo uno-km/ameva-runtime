@@ -80,9 +80,10 @@ class SmartRouter:
 
             if self.profile.gpu_family == "mali":
                 env["GGML_VK_DISABLE_F16"] = "1"
+                env["GGML_VK_FORCE_MEDIUM_MATMUL"] = "1"
                 diagnosis = (
-                    f"Warning: Vulkan forced on {self.profile.gpu_family.upper()} GPU. "
-                    "Known driver fence synchronization lockup hazard present."
+                    f"Vulkan hardware acceleration active on {self.profile.gpu_family.upper()} "
+                    f"({self.profile.vendor}) via v2.0.0 Medium MatMul pipeline. All {ngl} layers targeted to VRAM."
                 )
             else:
                 diagnosis = (
@@ -117,7 +118,69 @@ class SmartRouter:
             is_gpu_accelerated=is_gpu,
         )
 
+    def route_for_stt(
+        self,
+        model_name_or_path: str = "",
+        requested_backend: str | None = None,
+        requested_threads: int | None = None,
+    ) -> ExecutionPlan:
+        """Determines the optimal execution plan for STT inference (e.g. whisper.cpp / termux-stt).
+
+        Strict Zero-Silent-Fallback Protocol:
+        - If requested_backend is explicit 'cpu' or 'cpu_neon', routes cleanly to CPU NEON.
+        - If requested_backend is explicit 'vulkan' or adaptive (None):
+          - For Vulkan-capable devices (Adreno, Mali with medium matmul quirk, Desktop):
+            Selects Vulkan with -dev 0, driver preloads, and vendor quirks.
+        """
+        env: Dict[str, str] = {}
+        cli_flags: List[str] = []
+        is_gpu = False
+
+        backend = requested_backend or self.profile.recommended_backend
+        threads = requested_threads if requested_threads is not None else self.profile.recommended_threads
+
+        if backend == "vulkan":
+            is_gpu = True
+            if os.path.exists("/system/lib64/libvulkan.so"):
+                current_ld = os.environ.get("LD_LIBRARY_PATH", "")
+                if not current_ld.startswith("/system/lib64"):
+                    env["LD_LIBRARY_PATH"] = f"/system/lib64:{current_ld}".rstrip(":")
+
+            if self.profile.gpu_family == "mali":
+                env["GGML_VK_DISABLE_F16"] = "1"
+                env["GGML_VK_FORCE_MEDIUM_MATMUL"] = "1"
+                diagnosis = (
+                    f"Vulkan hardware acceleration active on {self.profile.gpu_family.upper()} "
+                    f"({self.profile.vendor}) for STT via Medium MatMul pipeline. Device index: 0."
+                )
+            else:
+                diagnosis = (
+                    f"Vulkan hardware acceleration active on {self.profile.gpu_family.upper()} "
+                    f"({self.profile.vendor}) for STT. Device index: 0."
+                )
+            cli_flags.extend(["-dev", "0", "-t", str(threads)])
+        else:
+            backend = "cpu_neon"
+            is_gpu = False
+            cli_flags.extend(["-dev", "-1", "-t", str(threads)])
+            diagnosis = (
+                f"Adaptive CPU NEON route selected for STT. Target hardware: {self.profile.vendor} "
+                f"({self.profile.gpu_family}). Active compute threads: {threads}."
+            )
+
+        return ExecutionPlan(
+            backend=backend,
+            threads=threads,
+            ngl=99 if is_gpu else 0,
+            env_overrides=env,
+            cli_flags=cli_flags,
+            allowed_cpus=sorted(self.profile.allowed_cpu_set),
+            diagnosis=diagnosis,
+            is_gpu_accelerated=is_gpu,
+        )
+
 
 def get_router() -> SmartRouter:
     """Returns a singleton SmartRouter instance."""
     return SmartRouter()
+

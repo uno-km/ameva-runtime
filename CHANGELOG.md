@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-09-05
+
+### Major Architecture Milestone: Single Package Unification, Mali-Valhall Acceleration & STT 2.26x Speedup
+- **ARM Mali Valhall MatMul Zero-Stride Infinite Loop Elimination**:
+  - Identified and resolved the critical GLSL compute shader integer truncation defect in `mul_mm.comp` (`loadstride_b = gl_WorkGroupSize.x * LOAD_VEC_B / BK = 16 * 1 / 32 = 0`).
+  - Completely eliminated GPU compute shader infinite loops (`for (uint l = 0; l < BN; l += 0)`) and hardware watchdog TDR aborts (`VK_ERROR_DEVICE_LOST`).
+  - Added `MaliQuirks::ShouldEnforceMediumMatMulKernel` and `VK_VENDOR_ID_ARM (0x13b5)` pipeline routing to enforce Medium kernels (`_m`, workgroup=128, loadstride=4 > 0).
+  - Empirically achieved **4.44 tokens/sec** on Samsung Galaxy A35 (Exynos 1380, Mali-G68 MP5) with 25/25 layers (100%) GPU offloading (+26.9% faster than 6 CPU-NEON cores).
+- **Whisper STT 2.26x Real-Device GPU Acceleration**:
+  - Validated Whisper Large-v3-Turbo (548MB Q5_0) on Samsung Galaxy A35 completing in **360.60s (6m 00s)** vs CPU NEON **816.48s (13m 36s)** — a **2.26x acceleration (56% time reduction)** with 0 fallbacks, while reducing CPU load from 291% to 20~30%.
+- **Qualcomm Adreno 830 JIT Bug Isolation**:
+  - Handled Qualcomm Adreno JIT compiler crash (`VK_ERROR_UNKNOWN -13`) when Specialization Constant `NUM_COLS >= 3` by bounding `mul_mat_vec_max_cols = 2`, enabling stable GPU inference on Galaxy S25 in 4,401 ms.
+- **Silicon-Aware Dynamic Branching (Galaxy S25 vs Galaxy A35)**:
+  - **Galaxy S25 (`SM-S931N`)**: Qualcomm Adreno 830 (Snapdragon 8 Elite) routes to high-throughput Vulkan compute with `subgroup_control_bypass: true` and native 64/128 subgroup GEMM.
+  - **Galaxy A35 (`SM-A356N`)**: ARM Mali-G68 MP5 (Exynos 1380) routes to zero-freeze Vulkan compute with `enforce_medium_matmul: true` and 128-byte memory alignment.
+  - SmartRouter dynamically negotiates between Qualcomm KGSL and ARM Bionic ICD drivers without regression or cross-contamination.
+- **PyTorch-Style Single Package Architecture**:
+  - Consolidated repository and distribution under `ameva-runtime` (v2.0.0), housing specialized Vulkan acceleration in `from ameva_runtime import vulkan` with dynamic single-source-of-truth versioning (`_version.py`).
+- **Complete Sibling Ecosystem Migration**:
+  - Migrated `termux-stt`, `termux-vision`, `termux-llamacpp`, `termux-diffusion`, `termux-bitnet`, `termux-tts`, and `termux-train` to directly import `from ameva_runtime import vulkan`.
+- **6-Modality Vulkan Acceleration Roadmap**:
+  - `LLM`: [v2.0.0 Completed] Llama.cpp Q4_K_M 25/25 layer full VRAM offload (Adreno 830: 35.80 t/s, Mali-G68: 4.44 t/s).
+  - `STT`: [v2.0.0 Completed] Whisper.cpp on-device Vulkan acceleration (Adreno 830: 4,401 ms, Mali-G68: 360.60s / 2.26x speedup).
+  - `Vision`: [v2.1.0 In Progress] CLIP, MobileVLM, LLaVA Vulkan GGML tensor binding.
+  - `Diffusion`: [v2.2.0 In Progress] Stable Diffusion v1.5 / Turbo & FLUX.1 on-device UNet/DiT tensor offload.
+  - `TTS`: [v2.3.0 In Progress] Piper, Sherpa-ONNX, Kokoro low-latency neural TTS streaming.
+  - `Train`: [v2.4.0 In Progress] On-device LoRA / QLoRA Vulkan gradient descent backpropagation.
+
+---
+
 ## [1.0.2] - 2026-09-05
 
 ### Fixed

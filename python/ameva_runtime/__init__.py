@@ -30,7 +30,8 @@ from .exceptions import (
     InvalidAffinityError,
 )
 
-__version__ = "1.0.1"
+from ._version import __version__
+
 
 __all__ = [
     "__version__",
@@ -60,5 +61,8 @@ __all__ = [
     "DeviceOOMError",
     "ArchitectureUnsupportedError",
     "InvalidAffinityError",
+    "vulkan",
 ]
+
+from . import vulkan
 

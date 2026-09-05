@@ -87,6 +87,15 @@ class SttAdapter:
                 config=config, status="BOUND",
             )
         else:
+            req_device = ""
+            if engine is not None:
+                req_device = str(getattr(engine, "device", "") or getattr(getattr(engine, "config", None), "device", "")).lower()
+            if req_device in ("gpu", "vulkan"):
+                raise AmevaRuntimeError(
+                    f"[ameva-vulkan-runtime:SttAdapter] [ZeroSilentFallback] Explicit Vulkan GPU mode requested ('{req_device}'), "
+                    f"but Vulkan diagnostic self-test failed (device='{report.device_name}', success={report.overall_success}). "
+                    f"Falling back to CPU is strictly forbidden under Zero-Silent-Fallback protocol."
+                )
             cpu_cores = os.cpu_count() or 8
             optimal_threads = max(1, cpu_cores // 2)
             config["threads"] = optimal_threads

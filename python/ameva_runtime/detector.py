@@ -184,6 +184,7 @@ def detect_hardware() -> HardwareProfile:
     # Evaluate routing decision and hardware hazard
     hardware_hazard: str | None = None
     termux_env = is_android() or is_termux()
+    has_vulkan_icd = os.path.exists("/system/lib64/libvulkan.so") or os.path.exists("/vendor/lib64/libvulkan.so")
 
     if gpu_family == "adreno" and has_kgsl:
         recommended_backend = "vulkan"
@@ -193,19 +194,22 @@ def detect_hardware() -> HardwareProfile:
             "Native Vulkan hardware acceleration is fully capable."
         )
     elif gpu_family == "mali" and termux_env:
-        hardware_hazard = "mali_vulkan_fence_deadlock"
-        recommended_backend = "cpu_neon"
-        # Determine available cores within cgroup
-        usable_cores = [c for c in big_cores if c in allowed_cpus]
-        if not usable_cores:
-            usable_cores = list(allowed_cpus)
-        recommended_threads = max(1, min(4, len(usable_cores)))
-        diagnosis_reason = (
-            f"{vendor.upper()} Mali GPU detected. System Vulkan driver (/system/lib64/libvulkan.so) "
-            "exhibits known fence synchronization deadlock and SurfaceFlinger screen freeze hazard. "
-            f"Routing to high-efficiency ARM NEON CPU engine (Allowed Cores: {sorted(allowed_cpus)}). "
-            "Zero-Silent-Fallback compliant."
-        )
+        if has_vulkan_icd:
+            recommended_backend = "vulkan"
+            recommended_threads = max(1, min(4, len(allowed_cpus)))
+            diagnosis_reason = (
+                f"{vendor.upper()} Mali GPU detected with Android Vulkan ICD. "
+                "Hardware acceleration active via v2.0.0 Medium MatMul pipeline (Zero-Freeze Mali Quirk)."
+            )
+        else:
+            hardware_hazard = "mali_vulkan_icd_missing"
+            recommended_backend = "cpu_neon"
+            usable_cores = [c for c in big_cores if c in allowed_cpus] or list(allowed_cpus)
+            recommended_threads = max(1, min(4, len(usable_cores)))
+            diagnosis_reason = (
+                f"{vendor.upper()} Mali GPU detected but Android ICD (/system/lib64/libvulkan.so) missing. "
+                f"Routing to high-efficiency ARM NEON CPU engine (Allowed Cores: {sorted(allowed_cpus)})."
+            )
     else:
         recommended_backend = "vulkan" if not termux_env else "cpu_neon"
         recommended_threads = max(1, min(4, len(allowed_cpus)))

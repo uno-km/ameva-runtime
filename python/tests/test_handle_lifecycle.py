@@ -5,9 +5,9 @@ import unittest
 import os
 import tempfile
 from pathlib import Path
-from ameva_vulkan_runtime.doctor import Doctor, DiagnosticReport
-from ameva_vulkan_runtime.bindings import AmevaVulkanLib, load_native_lib
-from ameva_vulkan_runtime.core import VulkanContext, get_or_create_context
+from ameva_runtime.vulkan.doctor import Doctor, DiagnosticReport
+from ameva_runtime.vulkan.bindings import AmevaVulkanLib, load_native_lib
+from ameva_runtime.vulkan.core import VulkanContext, get_or_create_context
 
 class TestHandleLifecycleAndIntegrity(unittest.TestCase):
 
@@ -43,7 +43,7 @@ class TestHandleLifecycleAndIntegrity(unittest.TestCase):
         
         # Calling SGEMM without native lib raises AmevaVulkanError strictly
         import numpy as np
-        from ameva_vulkan_runtime.exceptions import AmevaVulkanError
+        from ameva_runtime.vulkan.exceptions import AmevaVulkanError
         a = np.ones((2, 2), dtype=np.float32)
         b = np.ones((2, 2), dtype=np.float32)
         c = np.zeros((2, 2), dtype=np.float32)

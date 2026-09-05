@@ -4,8 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ameva-runtime"
-version = "1.0.2"
+dynamic = ["version"]
 description = "Unified Next-Gen Hardware Orchestration & AI Acceleration Runtime for Mobile & Edge"
+
 readme = "README.pypi.md"
 requires-python = ">=3.8"
 license = { text = "Apache-2.0" }
@@ -65,12 +66,17 @@ package-dir = {"" = "python"}
 where = ["python"]
 exclude = ["tests*", "*tests*"]
 
+[tool.setuptools.dynamic]
+version = {attr = "ameva_runtime._version.__version__"}
+
+
+
 
 [tool.setuptools.package-data]
 "ameva_runtime" = [
     "py.typed",
 ]
-"ameva_vulkan_runtime" = [
+"ameva_runtime.vulkan" = [
     "profiles/*.json",
     "lib/*.so",
     "lib/*.dll",

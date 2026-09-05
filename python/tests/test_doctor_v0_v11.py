@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ameva_vulkan_runtime.doctor import Doctor, DiagnosticReport, _find_vulkan_lib
+from ameva_runtime.vulkan.doctor import Doctor, DiagnosticReport, _find_vulkan_lib
 
 
 class TestDoctorV0V11(unittest.TestCase):

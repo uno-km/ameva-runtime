@@ -1,6 +1,6 @@
-﻿include README.md
+include README.md
 include README.pypi.md
 include LICENSE
 recursive-include profiles *.json
-recursive-include python/ameva_vulkan_runtime/profiles *.json
-recursive-include python/ameva_vulkan_runtime/lib *.so *.dll
+recursive-include python/ameva_runtime/vulkan/profiles *.json
+recursive-include python/ameva_runtime/vulkan/lib *.so *.dll

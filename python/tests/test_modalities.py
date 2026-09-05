@@ -15,9 +15,9 @@ for pkg in ["termux-stt", "termux-bitnet", "termux-diffusion", "termux-llamacpp"
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ameva_vulkan_runtime.doctor import Doctor, DiagnosticReport
-from ameva_vulkan_runtime.protocol import BindingResult
-from ameva_vulkan_runtime.adapters import (
+from ameva_runtime.vulkan.doctor import Doctor, DiagnosticReport
+from ameva_runtime.vulkan.protocol import BindingResult
+from ameva_runtime.vulkan.adapters import (
     SttAdapter,
     DiffusionAdapter,
     BitnetAdapter,
@@ -146,7 +146,7 @@ class TestModalitiesIntegration(unittest.TestCase):
 
     def test_context_lifecycle_unbind_all(self):
         """VulkanContext 컨텍스트 매니저 종료 시 등록된 모든 어댑터 자동 unbind 검증."""
-        from ameva_vulkan_runtime.core import VulkanContext
+        from ameva_runtime.vulkan.core import VulkanContext
         eng_llama = SimpleNamespace(config=RuntimeConfig())
         eng_vis = SimpleNamespace(device="vulkan", use_gpu=True)
 

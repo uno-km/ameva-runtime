@@ -631,7 +631,7 @@ class Doctor:
             # --- V7~V11: SPIR-V Pipeline / Dispatch / Checksum / MatMul / E2E ---
             if overall_ok:
                 try:
-                    from ameva_vulkan_runtime.bindings import AmevaVulkanLib
+                    from .bindings import AmevaVulkanLib
                     vlib = AmevaVulkanLib()
                     if vlib.is_loaded():
                         import numpy as np
@@ -794,6 +794,7 @@ class Doctor:
     def load_hardware_profile(self, device_name: str, vendor_id: int) -> dict:
         """validated-vulkan-profiles.json 에서 현재 디바이스의 하드웨어 쿼크를 로드합니다."""
         profile_paths = [
+            Path(__file__).parent.parent.parent.parent / "profiles" / "validated-vulkan-profiles.json",
             Path(__file__).parent.parent.parent / "profiles" / "validated-vulkan-profiles.json",
             Path(__file__).parent / "profiles" / "validated-vulkan-profiles.json",
             Path.home() / ".local" / "share" / "ameva" / "validated-vulkan-profiles.json",
