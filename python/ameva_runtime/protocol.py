@@ -111,6 +111,24 @@ class BindingResult:
     def target_modality(self) -> str:
         return self._module.replace("termux-", "")
 
+    @property
+    def diagnosis_reason(self) -> str:
+        return self._diagnosis or str(self._config.get("diagnosis", ""))
+
+    def to_dict(self) -> Dict[str, Any]:
+        res = dict(self._config)
+        res.update({
+            "module": self._module,
+            "backend": self._backend,
+            "is_vulkan": self._is_vulkan,
+            "device_name": self._device_name,
+            "vendor_id": self._vendor_id,
+            "status": self._status,
+            "diagnosis": self._diagnosis,
+            "diagnosis_reason": self.diagnosis_reason,
+        })
+        return res
+
     def __repr__(self) -> str:
         return (
             f"BindingResult(module={self._module!r}, backend={self._backend!r}, "

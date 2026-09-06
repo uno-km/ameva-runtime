@@ -1,23 +1,51 @@
 """
-AMEVA Modality Adapters
-=======================
-Adapters connecting individual uno-km AI modalities to the smart runtime.
+6-Modality Acceleration Adapters (Modular Subsystem)
+
+Re-exports individual modality adapters for:
+- SttAdapter (termux-stt / whisper.cpp)
+- DiffusionAdapter (termux-diffusion / stable-diffusion.cpp)
+- BitnetAdapter (termux-bitnet / 1.58-bit LLM)
+- LlamaCppAdapter (termux-llamacpp / GGUF LLM)
+- TtsAdapter (termux-tts / Piper & VITS)
+- VisionAdapter (termux-vision / LLaVA ViT)
 """
-from .base import BindingResult, find_system_vulkan_driver_dir
-from .llamacpp import LlamaCppAdapter
-from .vision import VisionAdapter
+from __future__ import annotations
+
+from .base import (
+    _is_vulkan_report,
+    _make_cpu_fallback,
+    _make_cpu_binding,
+    check_vulkan_availability_or_raise,
+    _ADRENO_VENDOR_ID,
+    _MALI_VENDOR_ID,
+    BindingResult,
+    BaseAdapter,
+    resolve_diagnostic_report,
+    get_vulkan_env,
+    find_system_vulkan_driver_dir,
+)
+from .bitnet import BitnetAdapter
 from .diffusion import DiffusionAdapter
+from .llamacpp import LlamaCppAdapter
 from .stt import SttAdapter
 from .tts import TtsAdapter
-from .bitnet import BitnetAdapter
+from .vision import VisionAdapter
 
 __all__ = [
-    "BindingResult",
-    "find_system_vulkan_driver_dir",
-    "LlamaCppAdapter",
-    "VisionAdapter",
-    "DiffusionAdapter",
+    "BaseAdapter",
+    "resolve_diagnostic_report",
     "SttAdapter",
-    "TtsAdapter",
+    "DiffusionAdapter",
     "BitnetAdapter",
+    "LlamaCppAdapter",
+    "TtsAdapter",
+    "VisionAdapter",
+    "BindingResult",
+    "get_vulkan_env",
+    "find_system_vulkan_driver_dir",
+    "_is_vulkan_report",
+    "_make_cpu_fallback",
+    "_make_cpu_binding",
+    "check_vulkan_availability_or_raise",
 ]
+

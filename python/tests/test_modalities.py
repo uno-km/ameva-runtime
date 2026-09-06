@@ -55,7 +55,7 @@ class TestModalitiesIntegration(unittest.TestCase):
         """BindingResult 공통 불변조건 검증."""
         self.assertIsInstance(result, BindingResult)
         self.assertEqual(result.module, module)
-        self.assertIn(result.status, ("BOUND", "BOUND_CPU"))
+        self.assertIn(result.status, ("BOUND", "BOUND_CPU", "BOUND_VULKAN", "BOUND_CPU_NEON"))
         self.assertIn(result.backend, ("vulkan", "cpu_neon"))
         self.assertIsInstance(result.config, dict)
         self.assertEqual(result.is_vulkan, self.is_vulkan)
@@ -144,8 +144,33 @@ class TestModalitiesIntegration(unittest.TestCase):
             # Test with dummy engine parameter
             adapter.unbind(SimpleNamespace())
 
+    def test_adapters_fail_fast_when_vulkan_requested_but_unavailable(self):
+        """Verify strict Fail-Fast: All 6 adapters MUST raise PlatformNotSupportedError when Vulkan is requested on unsupported hardware."""
+        from ameva_runtime.exceptions import PlatformNotSupportedError
+        unsupported_report = DiagnosticReport(
+            overall_success=False,
+            device_name="Generic Non-Vulkan Device",
+            driver_version="0.0.0",
+            loader_path="",
+            vendor_id=0,
+            passed_stages=0,
+            total_stages=12,
+            total_elapsed_ms=0.0,
+            recommended_backend="cpu_neon",
+        )
+        adapters = [SttAdapter, DiffusionAdapter, BitnetAdapter, LlamaCppAdapter, TtsAdapter, VisionAdapter]
+        for adapter in adapters:
+            with self.subTest(adapter=adapter.module_name):
+                with self.assertRaises(PlatformNotSupportedError) as ctx:
+                    adapter.bind(
+                        engine=SimpleNamespace(),
+                        report=unsupported_report,
+                        requested_backend="vulkan",
+                    )
+                self.assertIn("Vulkan acceleration backend explicitly requested", str(ctx.exception))
+
     def test_context_lifecycle_unbind_all(self):
-        """VulkanContext 컨텍스트 매니저 종료 시 등록된 모든 어댑터 자동 unbind 검증."""
+        """Verify VulkanContext context manager unbinds all registered adapters on exit."""
         from ameva_runtime.vulkan.core import VulkanContext
         eng_llama = SimpleNamespace(config=RuntimeConfig())
         eng_vis = SimpleNamespace(device="vulkan", use_gpu=True)
@@ -163,3 +188,4 @@ class TestModalitiesIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

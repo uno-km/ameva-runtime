@@ -899,3 +899,21 @@ class Doctor:
         icon = {"PASS": "PASS", "FAIL": "FAIL", "SKIP": "SKIP"}.get(stage.result, "????")
         name_col = stage.stage_name.ljust(36)
         print(f"  [{icon}] {name_col} ({stage.elapsed_ms:6.2f} ms) - {stage.detail_message}")
+
+    def query_physical_device_properties(self) -> Optional[dict]:
+        """SSOT CTypes Vulkan ABI를 통한 물리 디바이스 속성 직접 쿼리."""
+        try:
+            report = self.run_self_test(verbose=False)
+            if report.device_name and report.device_name != "Unknown":
+                return {
+                    "vendor_id": report.vendor_id,
+                    "device_name": report.device_name,
+                    "driver_version": report.driver_version,
+                }
+        except Exception:
+            pass
+        return None
+
+
+VulkanDoctor = Doctor
+__all__ = ["Doctor", "VulkanDoctor", "DiagnosticReport", "StageReport"]

@@ -130,56 +130,37 @@ def detect_hardware() -> HardwareProfile:
         else:
             big_cores = list(range(total_cores))
 
-    # Read CPU info and Android properties
-    cpu_info_text = ""
-    if os.path.exists("/proc/cpuinfo"):
-        try:
-            with open("/proc/cpuinfo", "r", encoding="utf-8", errors="replace") as f:
-                cpu_info_text = f.read()
-        except OSError:
-            pass
 
-    prop_soc = ""
-    soc_model = "unknown"
-    if is_android() or is_termux():
-        for prop_name in ["ro.soc.model", "ro.board.platform", "ro.hardware", "ro.chipname"]:
-            try:
-                val = subprocess.check_output(["getprop", prop_name], text=True, stderr=subprocess.DEVNULL).strip()
-                if val:
-                    prop_soc += " " + val.lower()
-                    if soc_model == "unknown":
-                        soc_model = val.lower()
-            except Exception:
-                pass
-
-    combined = (cpu_info_text.lower() + " " + prop_soc).strip()
-
+    # CTypes Vulkan ABI를 통한 네이티브 하드웨어 직접 질의 (SSOT)
     vendor = "generic"
     gpu_family = "generic"
+    soc_model = "unknown"
 
-    if any(k in combined for k in ["qualcomm", "qcom", "snapdragon", "sm8", "sm7", "sm6", "adreno"]):
-        vendor = "qualcomm"
-        gpu_family = "adreno"
-    elif any(k in combined for k in ["exynos", "s5e", "universal", "samsung"]):
-        vendor = "samsung_exynos"
-        gpu_family = "mali"
-    elif any(k in combined for k in ["mediatek", "mt6", "mt8", "dimensity"]):
-        vendor = "mediatek"
-        gpu_family = "mali"
-    elif any(k in combined for k in ["tensor", "gs101", "gs201", "zuma"]):
-        vendor = "google_tensor"
-        gpu_family = "mali"
+    try:
+        from ameva_runtime.vulkan.doctor import VulkanDoctor
+        doc = VulkanDoctor()
+        props = doc.query_physical_device_properties()
+        if props:
+            # 0x5143: Qualcomm, 0x13B5: ARM Mali, 0x10DE: NVIDIA, 0x8086: Intel
+            if props.get("vendor_id") == 0x5143 or "adreno" in props.get("device_name", "").lower():
+                vendor = "qualcomm"
+                gpu_family = "adreno"
+            elif props.get("vendor_id") == 0x13B5 or "mali" in props.get("device_name", "").lower():
+                vendor = "arm"
+                gpu_family = "mali"
+            soc_model = props.get("device_name", "unknown")
+    except Exception as err:
+        logger.debug("[ameva-runtime:detector] VulkanDoctor native probe unavailable: %s", err)
+        # 드라이버 미구동 시 커널 디바이스 노드 유무만으로 1차 판정 (문자열 파싱 영구 금지)
+        if os.path.exists("/dev/kgsl-3d0"):
+            vendor = "qualcomm"
+            gpu_family = "adreno"
+        elif os.path.exists("/dev/mali0"):
+            vendor = "arm"
+            gpu_family = "mali"
 
-    # Node validation
     has_kgsl = os.path.exists("/dev/kgsl-3d0")
     has_mali = os.path.exists("/dev/mali0")
-
-    if has_kgsl and gpu_family == "generic":
-        vendor = "qualcomm"
-        gpu_family = "adreno"
-    elif has_mali and gpu_family == "generic":
-        vendor = "samsung_exynos"
-        gpu_family = "mali"
 
     # Evaluate routing decision and hardware hazard
     hardware_hazard: str | None = None
@@ -230,7 +211,7 @@ def detect_hardware() -> HardwareProfile:
         hardware_hazard=hardware_hazard,
         diagnosis_reason=diagnosis_reason,
         raw_info={
-            "combined_id": combined[:120],
+            "combined_id": soc_model,
             "freq_map": freq_map,
         },
     )
