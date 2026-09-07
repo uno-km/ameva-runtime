@@ -1,7 +1,7 @@
 name: AMEVA-Runtime
 package_name_pypi: ameva-runtime
 package_name_npm: '@ameva/runtime'
-version: v2.1.0
+version: v2.3.4
 release_name: Unified On-Device Hardware Orchestration & Multi-Modal AI Acceleration Runtime
 license: Apache-2.0
 platform: Android ARM64 / Qualcomm Adreno, ARM Mali, Linux & Edge
@@ -91,9 +91,9 @@ description_en: |
   | **1. LLM (Text)** | Llama.cpp (Qwen2.5, Llama 3.2) | **[v2.0.0 Stable]** | Vulkan 25/25 layer full VRAM offload (Adreno 35.8 t/s, Mali 4.44 t/s) |
   | **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **[v2.0.0 Stable]** | Vulkan on-device STT acceleration (Adreno 4.4s, Mali 2.26x speedup) |
   | **3. TTS (Audio)** | Sherpa-NCNN / Piper | **[v2.1.0 Stable]** | Pure Vulkan GPU neural TTS (Adreno RTF 0.26x, Mali RTF 1.14x, high-fp16) |
-  | **4. Vision (VLM)** | CLIP, MobileVLM, LLaVA | **[v2.2.0 WIP]** | GGML Vulkan image encoder tensor engine binding |
-  | **5. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **[v2.3.0 WIP]** | On-device Vulkan UNet & DiT tensor offload engine |
-  | **6. Train (Training)** | On-Device LoRA / QLoRA | **[v2.4.0 WIP]** | Smartphone local Vulkan gradient descent backpropagation engine |
+  | **4. Vision (VLM)** | CLIP, MobileVLM, LLaVA, SmolVLM | **[v2.3.4 Stable]** | GGML Vulkan image encoder & llama-mtmd-cli pure GPU offload |
+  | **5. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **[v2.3.4 Stable]** | On-device Vulkan UNet & DiT tensor offload engine |
+  | **6. Train (Training)** | On-Device LoRA / QLoRA | **[v2.4.0 Planned]** | Smartphone local Vulkan gradient descent backpropagation engine |
 
   ### 6. Architectural Principles
   - **Fail-Fast & Zero-Silent-Fallback**: Never disguise GPU failures as CPU success. If a hardware backend fails, immediate explicit exceptions and telemetry are raised.
@@ -103,15 +103,6 @@ features:
   - title_ko: SmartRouter 실리콘 토폴로지 자동 분기
     title_en: SmartRouter Silicon Topology Dispatch
     desc_ko: 커널 디바이스 노드와 cgroup 친화도를 분석하여 Qualcomm Adreno와 ARM Mali 간 최적 분기를 수행합니다.
-    desc_en: Analyzes device nodes (/dev/kgsl-3d0, /dev/mali0) and cgroups to dispatch between Qualcomm Adreno and ARM Mali.
-  - title_ko: Adreno 830 네이티브 풀 오프로드
-    title_en: Native Adreno 830 Full Offloading
-    desc_ko: Snapdragon 8 Elite 환경에서 25/25 레이어 전체를 GPU VRAM에 적재하여 35.80 tokens/sec의 속도를 제공합니다.
-    desc_en: Offloads 25/25 LLM layers to VRAM on Snapdragon 8 Elite, achieving 35.80 tokens/sec (27.9 ms/t).
-  - title_ko: Mali Valhall MatMul 쿼크 엔진
-    title_en: Mali Valhall MatMul Quirk Engine
-    desc_ko: 서브그룹 16 Mali GPU의 정수 절삭 루프를 방지하고 Medium 커널을 강제하여 4.44 tokens/sec로 안정 구동합니다.
-    desc_en: Eliminates GLSL integer truncation infinite loops on subgroup-16 Mali GPUs by enforcing Medium kernels (4.44 t/s).
   - title_ko: Whisper STT 2.26배 하드웨어 가속
     title_en: Whisper STT 2.26x Hardware Acceleration
     desc_ko: Whisper Large-v3-Turbo 모델을 GPU로 가속하여 360초에 완료하고 CPU 부하를 대폭 경감합니다.
@@ -167,6 +158,14 @@ code_example_js: |
   console.log(`Runtime Context Initialized on ${ctx.deviceName}`);
 
 changelog:
+  - version: v2.3.4
+    date: '2026-09-07'
+    title: VisionAdapter Multimodal VLM GPU Acceleration & Pure Wheel Architecture
+    type: Production Release (Latest)
+    changes:
+      - 'Enhanced VisionAdapter Pure GPU Offload: Bound -ot token_embd.weight=Vulkan0 -fit off, dynamic --chat-template (ChatML/SmolVLM), and --no-warmup optimization.'
+      - 'Architectural Isolation & Wheel Purity: Completely excised legacy termux_train prototype from runtime package, enforcing strict include filter in pyproject.toml.'
+      - 'Ecosystem ABI Alignment: Synchronized with termux-vision v1.3.x and multimodal llama-mtmd-cli execution pipeline.'
   - version: v2.1.0
     date: '2026-09-05'
     title: TTS Modality Completion (Vulkan High-FP16), Subgroup Optimization & Ecosystem Sync

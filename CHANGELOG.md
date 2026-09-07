@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.4] - 2026-09-07
+
+### Added
+- **VisionAdapter Pure GPU Acceleration & Multimodal VLM Harmonization**:
+  - Enhanced `VisionAdapter.build_cli_args()` with pure GPU offload flags (`-ot token_embd.weight=Vulkan0 -fit off`).
+  - Added dynamic `--chat-template` resolution (`chatml` for Qwen2-VL, `smolvlm` for SmolVLM) and `--no-warmup` optimization.
+  - Added CPU fallback stabilization flag `--no-mmproj-offload`.
+  - Harmonized with `termux-vision` v1.3.x ABI and multimodal `llama-mtmd-cli` runtime.
+
+### Fixed
+- **Architectural Isolation & Wheel Purity Enforcement**:
+  - Excised rogue legacy `termux_train` prototype package and test suite from `ameva-runtime`.
+  - Implemented physical barricade in `pyproject.toml` via `include = ["ameva_runtime*"]` to prevent unintended co-packaging.
+  - Reduced repository fat and cleared historical build residues.
+
+---
+
 ## [2.3.3] - 2026-09-07
 
 ### Added
