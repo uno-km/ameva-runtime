@@ -33,21 +33,44 @@ To install with full multi-modal engine integrations (STT, TTS, LLM, Diffusion, 
 pip install "ameva-runtime[all]"
 ```
 
-### 1.3 1-Click Native Hardware Asset Provisioning (One-Touch Auto-Install)
-Provision precompiled ARM64 Bionic binaries, native compute shaders, and hardware drivers in a single command without building from source:
+### 1.3 1-Click Native Hardware Asset Provisioning & Dual-Track Compatibility
+Rather than requiring users to manually compile C/C++ source trees, setup CMake/Clang toolchains, or configure OpenMP and Vulkan loaders, AMEVA-Runtime includes an automated, atomic hardware provisioner (`NativeAssetManager`):
+
 ```bash
-# Provision all modalities (Diffusion, STT, TTS, OpenMP, EGL Shim, SPIR-V Shaders)
+# 1-Click Auto-Provision all 6 modalities and native hardware drivers
 ameva install --all
 
-# Or provision a specific modality with force overwrite
+# Or alias
+ameva setup
+
+# Force overwrite existing binaries with fresh GitHub Release assets
+ameva install --all --force
+
+# Provision a single targeted modality
 ameva install --modality diffusion --force
 ```
-This automatically provisions and links:
-* **Stable Diffusion CLI (`sd-cli`)**: `~/.local/bin/sd-cli` (and legacy path `~/.cache/termux-diffusion/bin/sd-cli`)
-* **Whisper STT (`whisper-cli`)**: `~/.local/bin/whisper-cli` (and `$PREFIX/bin/whisper-cli`)
-* **Sherpa-NCNN TTS (`sherpa-ncnn-offline-tts`)**: `~/.local/bin/sherpa-ncnn-offline-tts`
-* **Vulkan HAL Shim & OpenMP (`libegl_shim.so`, `libomp.so`)**: `$PREFIX/lib/`
-* **SPIR-V Zero-Stride Bypass Shader (`matmul.spv`)**: `~/.local/share/ameva/shaders/matmul.spv`
+
+#### Dual-Track Compatibility Architecture (Track A + Track B)
+AMEVA-Runtime enforces a **Dual-Track Deployment Architecture** to ensure zero-regression interoperability between modern unified environments and existing ecosystem toolchains:
+
+| Asset / Engine | Clean Unified Path (Track B) | Legacy Bridge / Symlink (Track A) | Engine Type & Target Modality |
+| :--- | :--- | :--- | :--- |
+| **`sd-cli`** (36.2 MB) | `~/.local/bin/sd-cli` | `~/.cache/termux-diffusion/bin/sd-cli` | Stable Diffusion On-Device Vulkan Engine |
+| **`whisper-cli`** (3.3 MB) | `~/.local/bin/whisper-cli` | `$PREFIX/bin/whisper-cli`, `~/.local/bin/whisper-cpp` | Whisper Speech-to-Text ARM64 Engine |
+| **`sherpa-ncnn-offline-tts`** (3.9 MB) | `~/.local/bin/sherpa-ncnn-offline-tts` | `~/sherpa-ncnn/build-vulkan/bin/`, `$PREFIX/bin/` | Sherpa-NCNN Vulkan Neural Speech Synthesis |
+| **`libomp.so`** (1.1 MB) | `$PREFIX/lib/libomp.so` | `~/.local/lib/libomp.so` | OpenMP High-Throughput Threading Runtime |
+| **`libegl_shim.so`** (8.4 KB) | `$PREFIX/lib/libegl_shim.so` | `~/.local/lib/libegl_shim.so` | Android Termux Headless EGL/GBM Driver Shim |
+| **`matmul.spv`** (4.7 KB) | `~/.local/share/ameva/shaders/matmul.spv` | `$PREFIX/share/ameva/shaders/matmul.spv` | Mali/Adreno Zero-Stride Workaround SPIR-V Shader |
+
+#### Programmatic Python Provisioning API
+You can also trigger atomic asset provisioning directly within Python workflows:
+```python
+from ameva_runtime import provision_native_assets
+
+# Provision all native binaries and link compatibility bridges
+results = provision_native_assets(force=False)
+print("Provisioning Status:", results)
+```
 
 ### 1.4 Node.js / TypeScript SDK & CLI Installation
 Install globally or as a project dependency via `npm`:

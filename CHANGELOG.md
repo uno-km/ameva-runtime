@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.3] - 2026-09-07
+
+### Added
+- Comprehensive 1-Click Native Hardware Asset Provisioning & Dual-Track Compatibility specification across 3-tier READMEs (`README.md`, `README.pypi.md`, `npm/README.md`).
+- Integrated asset matrix detailing all 6 modalities, precompiled ARM64 Bionic engines (`sd-cli`, `whisper-cli`, `sherpa-ncnn-offline-tts`), and system HAL shims (`libomp.so`, `libegl_shim.so`, `matmul.spv`).
+- Documented Python programmatic provisioning API (`provision_native_assets`).
+
+---
+
 ## [2.2.2] - 2026-09-07
 
 ### Added
