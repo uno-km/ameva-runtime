@@ -259,6 +259,19 @@ AMEVA-Runtime rejects silent fallback to CPU when GPU acceleration is explicitly
 * **`[ERROR: AMEVA-RUNTIME-E002]`**: Driver initialization failed or GPU device does not support compute queues.
 * **Rationale**: Silent fallback causes unexpected 100% CPU thread starvation, rapid thermal runaway (up to 45°C+), and battery drain on mobile silicon.
 
+### 4.4 Mobile Vulkan Diffusion Acceleration & Adreno Bypass
+AMEVA-Runtime incorporates specialized low-level optimizations for edge diffusion on mobile GPUs:
+* **Adreno Host-Side CPU Check Bypass**: Sets `GGML_VULKAN_SKIP_CHECKS="999999999"`, eliminating redundant host-side validation calls that degrade throughput on Qualcomm Adreno devices.
+* **Multi-Engine Vulkan Targeting**: Automatically configures `--backend clip=vulkan0,diffusion=vulkan0,vae=vulkan0` for Adreno / Vulkan GPU modes to prevent driver crashes during cross-stage tensor passing.
+* **Sub-Second Edge Sampling**: Optimizes default sampling steps (`steps=2`) and adds `--guidance` support for SDXS and Turbo architectures.
+
+### 4.5 Fleet Orchestration & Remote Cluster Management (`tools/fleet/`)
+For multi-device testbeds and edge inference clusters, AMEVA-Runtime includes a dedicated orchestration subsystem:
+* **Remote Fleet Control**: Manages 5 physical cluster nodes (Galaxy S25 Flagship, Galaxy S21, Galaxy S20+, Galaxy A35, Galaxy A53) over secure Tailscale SSH/SCP.
+* **1-Touch Deployment & Benchmark**: Deploy binaries, run diffusion presets, and collect execution statistics with `python tools/fleet/fleet_cli.py run --device s25 --preset sdxs`.
+* **Image Quality & Entropy Auditing (`tools/fleet/audit.py`)**: Automatically computes Shannon entropy (bits) and dynamic range clipping percentage (low/high) on generated outputs to catch collapsed or corrupted tensors immediately.
+* **Production Presets**: Ships with 8 preconfigured mobile profiles (`sdxs.json`, `turbo.json`, `fast.json`, `speed.json`, `anime.json`, `realistic.json`, `balanced.json`, `anime-experimental.json`).
+
 ---
 
 ## 5. Real-World Production Examples
