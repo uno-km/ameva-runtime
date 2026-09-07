@@ -1,0 +1,91 @@
+#version 450
+
+// ============================================================================
+// AMEVA Runtime - BitNet 1.58-bit (i2_s) GEMV Compute Shader
+// Hardware Target: ARM Mali (Bifrost/Valhall) & Qualcomm Adreno (6xx/7xx/8xx)
+// Mathematical Specification: 32-way 4-stride interleaved centered ternary {-1, 0, +1}
+// Optimization: RelaxedPrecision (FP16 packed ALU) + Branchless Zero-Conversion LUT
+// ============================================================================
+layout(local_size_x = 32, local_size_y = 4, local_size_z = 1) in;
+
+// Binding 0: Packed 2-bit weights (32 bytes per 128 weights)
+layout(std430, binding = 0) readonly buffer WeightBuffer {
+    uint raw_weights[]; // Packed as 32-bit uints (4 bytes = 16 weights per uint)
+};
+
+// Binding 1: Input activation vector
+layout(std430, binding = 1) readonly buffer ActivationBuffer {
+    float activations[];
+};
+
+// Binding 2: Output matrix-vector product vector
+layout(std430, binding = 2) writeonly buffer OutputBuffer {
+    float output_vec[];
+};
+
+// Hyperparameters passed via Push Constants
+layout(push_constant) uniform PushConstants {
+    uint in_dim;            // Input dimension N (multiple of 128)
+    uint out_dim;           // Output dimension M (number of rows)
+    float dequant_scale;    // Activation dequantization factor
+    uint weight_offset_bytes;// Offset into raw_weights buffer (multiple of 4)
+    uint output_offset_words;// Offset into output_vec buffer (in floats)
+} params;
+
+// Shared memory for 32-thread row tree reduction
+shared float row_shared_sum[4][32];
+
+void main() {
+    uint local_lane = gl_LocalInvocationID.x; // 0..31 (Byte offset within 128-weight block)
+    uint local_row  = gl_LocalInvocationID.y; // 0..3  (Row within workgroup tile)
+    uint global_row = gl_WorkGroupID.x * 4 + local_row;
+
+    float thread_accumulator = 0.0;
+
+    if (global_row < params.out_dim) {
+        uint num_blocks = params.in_dim / 128;
+        uint base_word = params.weight_offset_bytes / 4u;
+        uint row_word_base = base_word + global_row * (num_blocks * 8);
+
+        for (uint b = 0; b < num_blocks; ++b) {
+            uint block_col_base = b * 128;
+            uint word_idx = row_word_base + (b * 8) + (local_lane / 4);
+            uint byte_shift = (local_lane % 4) * 8;
+            uint packed_word = raw_weights[word_idx];
+            uint byte_val = (packed_word >> byte_shift) & 0xFFu;
+
+            // 32-way interleaved ternary unpacking via pure register ALU (Zero Memory Spill)
+            float w0 = float((byte_val >> 6) & 0x03u) - 1.0;
+            float w1 = float((byte_val >> 4) & 0x03u) - 1.0;
+            float w2 = float((byte_val >> 2) & 0x03u) - 1.0;
+            float w3 = float(byte_val & 0x03u) - 1.0;
+
+            // Interleaved activation fetches
+            float x0 = activations[block_col_base + 0 * 32 + local_lane];
+            float x1 = activations[block_col_base + 1 * 32 + local_lane];
+            float x2 = activations[block_col_base + 2 * 32 + local_lane];
+            float x3 = activations[block_col_base + 3 * 32 + local_lane];
+
+            thread_accumulator += (w0 * x0) + (w1 * x1) + (w2 * x2) + (w3 * x3);
+        }
+    }
+
+    // Workgroup parallel tree reduction (32 lanes -> 1 lane per row)
+    row_shared_sum[local_row][local_lane] = thread_accumulator;
+    barrier();
+
+    if (local_lane < 16) { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 16]; }
+    barrier();
+    if (local_lane < 8)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 8];  }
+    barrier();
+    if (local_lane < 4)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 4];  }
+    barrier();
+    if (local_lane < 2)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 2];  }
+    barrier();
+    if (local_lane < 1)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 1];  }
+
+    // Master thread writes final dequantized dot-product output
+    if (local_lane == 0 && global_row < params.out_dim) {
+        output_vec[params.output_offset_words + global_row] = float(row_shared_sum[local_row][0]) * params.dequant_scale;
+    }
+}

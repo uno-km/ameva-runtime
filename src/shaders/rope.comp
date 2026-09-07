@@ -1,0 +1,47 @@
+#version 450
+
+// ============================================================================
+// AMEVA Runtime - In-Place RoPE (Rotary Position Embedding) Compute Shader
+// Hardware Target: ARM Mali & Qualcomm Adreno
+// Math: 
+//   theta = pos / (theta_base ^ (2*p / head_dim))
+//   v0' = v0 * cos(theta) - v1 * sin(theta)
+//   v1' = v0 * sin(theta) + v1 * cos(theta)
+// Binding 2: output_buffer_ in-place
+// Workgroup: local_size_x = 64 (64 pairs = 128 head_dim)
+// Grid: (n_heads, 1, 1)
+// ============================================================================
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 2) buffer TargetBuffer {
+    float data[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint in_dim;             // unused
+    uint out_dim;            // n_heads
+    float dequant_scale;     // theta_base (10000.0)
+    uint weight_offset_bytes;// pos (token position)
+    uint output_offset_words;// offset in floats into TargetBuffer
+} params;
+
+void main() {
+    uint h = gl_WorkGroupID.x;
+    uint p = gl_LocalInvocationID.x;
+    if (h >= params.out_dim || p >= 64u) return;
+
+    uint i = p * 2u;
+    float pos = float(params.weight_offset_bytes);
+    float theta_base = params.dequant_scale;
+    float theta = pos / pow(theta_base, float(i) / 128.0);
+    float cos_t = cos(theta);
+    float sin_t = sin(theta);
+
+    uint base_idx = params.output_offset_words + h * 128u + i;
+    float v0 = data[base_idx];
+    float v1 = data[base_idx + 1u];
+
+    data[base_idx]      = v0 * cos_t - v1 * sin_t;
+    data[base_idx + 1u] = v0 * sin_t + v1 * cos_t;
+}
