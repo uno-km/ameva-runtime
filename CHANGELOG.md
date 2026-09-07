@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-09-07
+
+### Added
+- **Qualcomm Snapdragon 8 Elite (Adreno 830) Full-GPU VLM Acceleration**:
+  - Validated 25/25 layer full GPU offloading for Moondream2 (2.8GB text f16 + 868MB ViT f16) on Galaxy S25 Adreno 830 (15.00 tokens/s generation).
+  - Implemented kernel GPU watchdog timeout (`ErrorDeviceLost`) defense: `VisionAdapter.get_execution_environment()` automatically injects `GGML_VULKAN_SKIP_CHECKS="999999999"` to bypass host shader verification bottlenecks.
+  - Micro-batch prefill chunking (`-b 64 -ub 64`) preventing Qualcomm KGSL watchdog resets on large ViT token batches (729 tokens).
+  - Unlocked dynamic parameter forwarding and removed artificial thread clamping in VLM execution pipeline.
+  - Synchronized bidirectional ABI and parameter suite with `termux-vision` v1.4.0.
+
 ## [2.3.4] - 2026-09-07
 
 ### Added

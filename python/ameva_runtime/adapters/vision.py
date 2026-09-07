@@ -27,9 +27,20 @@ class VisionAdapter(BaseAdapter):
     module_name = "termux-vision"
 
     @classmethod
-    def get_execution_environment(cls, base_env: dict[str, str] | None = None, tune_mali: bool = False) -> dict[str, str]:
-        """Provides verified execution environment adhering to Golden Link Order with Mali tuning."""
+    def get_execution_environment(
+        cls,
+        base_env: dict[str, str] | None = None,
+        tune_mali: bool = False,
+        tune_adreno: bool = False,
+    ) -> dict[str, str]:
+        """
+        Provides verified execution environment adhering to Golden Link Order with Mali/Adreno tuning.
+        Injects GGML_VULKAN_SKIP_CHECKS=999999999 to prevent mobile kernel GPU watchdog timeout
+        (ErrorDeviceLost) during large ViT prefill and shader compilation.
+        """
         env = get_vulkan_env(base_env)
+        # Essential bypass for Qualcomm Adreno & mobile Vulkan KGSL watchdog / shader check overhead
+        env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
         if tune_mali:
             env["GGML_VK_FORCE_MMVQ"] = "1"
         return env

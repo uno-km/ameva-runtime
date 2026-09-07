@@ -3,6 +3,24 @@
 All notable changes and milestones for `ameva-runtime` will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and Apache-2.0 governance.
 
+## [v2.4.0] - 2026-09-07
+### Qualcomm Snapdragon 8 Elite (Adreno 830) Full-GPU VLM Acceleration & Sibling Alignment
+
+#### Highlights
+- **Adreno 830 Full-GPU VLM Offloading**:
+  - Validated 25/25 layer full GPU offload for Moondream2 1.8B f16 on Galaxy S25 Adreno 830 (15.00 tok/s generation, 2,706 MiB VRAM, 0.00 MiB CPU Mapped VRAM).
+- **Kernel Watchdog & ErrorDeviceLost Defense**:
+  - `VisionAdapter.get_execution_environment()` now automatically injects `GGML_VULKAN_SKIP_CHECKS="999999999"` to eliminate mobile GPU host shader check latency.
+  - Micro-batch prefill chunking (`-b 64 -ub 64`) preventing Qualcomm KGSL watchdog timeouts during large ViT prefill (729 tokens).
+- **Universal Parameter Alignment**:
+  - Unlocked dynamic parameter forwarding and removed artificial thread clamping in VLM execution pipeline.
+  - Synchronized with `termux-vision` v1.4.0.
+
+#### Distribution
+- PyPI: `pip install ameva-runtime`
+- npm: `npm install @ameva/runtime`
+- Web Docs: [https://uno-km.vercel.app/lib/vulkan/](https://uno-km.vercel.app/lib/vulkan/)
+
 ---
 
 ## [v2.0.1] - 2026-09-05

@@ -1,7 +1,7 @@
 name: AMEVA-Runtime
 package_name_pypi: ameva-runtime
 package_name_npm: '@ameva/runtime'
-version: v2.3.4
+version: v2.4.0
 release_name: Unified On-Device Hardware Orchestration & Multi-Modal AI Acceleration Runtime
 license: Apache-2.0
 platform: Android ARM64 / Qualcomm Adreno, ARM Mali, Linux & Edge
