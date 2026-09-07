@@ -162,6 +162,11 @@ class VisionAdapter(BaseAdapter):
         no_warmup: bool = True,
         pure_gpu: bool = True,
         fit_off: bool = True,
+        batch_size: int = 64,
+        ubatch_size: Optional[int] = None,
+        flash_attn: bool = False,
+        no_mmproj_offload: bool = True,
+        simple_io: bool = False,
     ) -> list[str]:
         """Assembles verified VLM CLI argument list conforming to modern llama-cli specifications."""
         import os
@@ -198,13 +203,32 @@ class VisionAdapter(BaseAdapter):
             "-n", str(max_tokens),
             "--temp", str(temperature),
             "-ngl", ngl_val,
-            "--simple-io",
+            "-b", str(batch_size),
+            "-ub", str(ubatch_size if ubatch_size is not None else batch_size),
         ])
+
+        if simple_io:
+            cmd.append("--simple-io")
+
+        if not flash_attn:
+            cmd.extend(["-fa", "off"])
+
+        if no_mmproj_offload:
+            cmd.append("--no-mmproj-offload")
 
         if chat_template:
             if chat_template == "auto":
                 m_str = str(text_model_path).lower()
-                resolved_template = "chatml" if "qwen" in m_str else "smolvlm"
+                if "moondream" in m_str:
+                    resolved_template = "vicuna"
+                elif "qwen" in m_str:
+                    resolved_template = "chatml"
+                elif "smolvlm" in m_str:
+                    resolved_template = "smolvlm"
+                elif "deepseek" in m_str:
+                    resolved_template = "deepseek"
+                else:
+                    resolved_template = "vicuna"
             else:
                 resolved_template = chat_template
             cmd.extend(["--chat-template", resolved_template])
@@ -219,8 +243,6 @@ class VisionAdapter(BaseAdapter):
                 cmd.extend(["-fit", "off"])
             if device_name:
                 cmd.extend(["--device", device_name])
-        elif target_backend == "cpu":
-            cmd.append("--no-mmproj-offload")
 
         if repeat_penalty is not None:
             cmd.extend(["--repeat-penalty", str(repeat_penalty)])

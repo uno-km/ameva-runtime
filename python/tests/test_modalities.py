@@ -185,6 +185,35 @@ class TestModalitiesIntegration(unittest.TestCase):
         self.assertEqual(eng_vis.device, "cpu")
         self.assertFalse(eng_vis.use_gpu)
 
+    def test_vision_adapter_build_cli_args(self):
+        """VisionAdapter.build_cli_args 생성 인자 및 플래그 무결성 검증."""
+        cmd = VisionAdapter.build_cli_args(
+            executable="llama-cli",
+            text_model_path="/path/moondream2-text.gguf",
+            vision_model_path="/path/moondream2-mmproj.gguf",
+            image_path="/path/test.png",
+            prompt="Describe this image",
+            target_backend="vulkan",
+            batch_size=64,
+            ubatch_size=64,
+            flash_attn=False,
+            no_mmproj_offload=True,
+            pure_gpu=True,
+            fit_off=True,
+        )
+        self.assertIn("-b", cmd)
+        self.assertIn("64", cmd)
+        self.assertIn("-ub", cmd)
+        self.assertIn("--no-mmproj-offload", cmd)
+        self.assertIn("-fa", cmd)
+        self.assertIn("off", cmd)
+        self.assertIn("-ot", cmd)
+        self.assertIn("token_embd.weight=Vulkan0", cmd)
+        self.assertIn("-fit", cmd)
+        self.assertIn("off", cmd)
+        self.assertIn("--chat-template", cmd)
+        self.assertIn("vicuna", cmd)
+
 
 if __name__ == "__main__":
     unittest.main()
