@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.3] - 2026-09-07
+
+### Added
+- **Zero-Hardcoding Dynamic Provisioner**:
+  - Replaced hardcoded `v2.2.1` release tag URLs in `python/ameva_runtime/installer.py` with dynamic 3-tier fallback chain (`AMEVA_RELEASE_TAG` / `AMEVA_RELEASE_BASE` -> `v{__version__}` -> `releases/latest/download`).
+  - Added automated HTTP 404 redirect fallback to `releases/latest/download` when versioned tag assets are not yet indexed.
+  - Dynamic `User-Agent: AMEVA-Installer/{__version__}`.
+  - Added comprehensive test suite `test_installer_dynamic.py` verifying dynamic resolution across environment variable configurations.
+- **Unified 22-Asset Ecosystem Distribution**:
+  - Synchronized and bundled all 22 official precompiled hardware binaries, Bionic shims, SPIR-V shaders, SDKs, whitepapers, and companion wheels (`termux-diffusion`) across GitHub Releases.
+
+---
+
 ## [2.3.0] - 2026-09-07
 
 ### Added

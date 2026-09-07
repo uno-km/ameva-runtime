@@ -50,6 +50,9 @@ ameva install --all --force
 ameva install --modality diffusion --force
 ```
 
+* **🛡️ Zero-Hardcoding Dynamic 3-Tier Resolution**: Binary downloads dynamically resolve through `AMEVA_RELEASE_TAG` / `AMEVA_RELEASE_BASE` -> current package version `v{__version__}` -> `/releases/latest/download` with automatic HTTP 404 latest-release redirect fallback.
+* **📦 22 Unified Ecosystem Assets**: GitHub Releases bundle all 22 official precompiled hardware engines, Bionic shims, SPIR-V shaders, companion wheels (`termux-diffusion`), C++ SDKs, and engineering whitepapers.
+
 #### Dual-Track Compatibility Architecture (Track A + Track B)
 AMEVA-Runtime enforces a **Dual-Track Deployment Architecture** to ensure zero-regression interoperability between modern unified environments and existing ecosystem toolchains:
 
