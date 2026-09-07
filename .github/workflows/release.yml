@@ -96,3 +96,41 @@ jobs:
           else
             echo "No package.json found. Skipping NPM publish."
           fi
+
+  publish-github-packages:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@uno-km'
+
+      - name: Publish to GitHub Packages
+        run: |
+          cd npm
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.name = '@uno-km/ameva-runtime';
+            pkg.repository = {
+              type: 'git',
+              url: 'git+https://github.com/uno-km/ameva-runtime.git'
+            };
+            pkg.publishConfig = {
+              registry: 'https://npm.pkg.github.com'
+            };
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
