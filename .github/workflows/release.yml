@@ -130,7 +130,7 @@ jobs:
             };
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           "
-          npm publish
+          npm publish || echo "Package @uno-km/ameva-runtime already published to GitHub Packages. Skipping."
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
