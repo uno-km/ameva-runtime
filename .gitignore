@@ -69,6 +69,3 @@ cluster_config.json
 !cluster_config.example.json
 fleet_hosts.json
 .fleet*
-tools/vlm_runner.py
-tools/benchmark_patches.py
-tools/test_shapes*.png

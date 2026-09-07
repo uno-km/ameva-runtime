@@ -115,6 +115,7 @@ package-dir = {"" = "python"}
 
 [tool.setuptools.packages.find]
 where = ["python"]
+include = ["ameva_runtime*"]
 exclude = ["tests*", "*tests*"]
 
 [tool.setuptools.dynamic]

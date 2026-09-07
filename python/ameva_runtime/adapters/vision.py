@@ -27,9 +27,12 @@ class VisionAdapter(BaseAdapter):
     module_name = "termux-vision"
 
     @classmethod
-    def get_execution_environment(cls, base_env: dict[str, str] | None = None) -> dict[str, str]:
-        """Provides verified execution environment adhering to Golden Link Order."""
-        return get_vulkan_env(base_env)
+    def get_execution_environment(cls, base_env: dict[str, str] | None = None, tune_mali: bool = False) -> dict[str, str]:
+        """Provides verified execution environment adhering to Golden Link Order with Mali tuning."""
+        env = get_vulkan_env(base_env)
+        if tune_mali:
+            env["GGML_VK_FORCE_MMVQ"] = "1"
+        return env
 
     @staticmethod
     def bind(
@@ -140,7 +143,8 @@ class VisionAdapter(BaseAdapter):
         text_model_path: str,
         vision_model_path: str,
         image_path: str,
-        prompt_file: str,
+        prompt_file: Optional[str] = None,
+        prompt: Optional[str] = None,
         target_backend: str = "auto",
         threads: Any = "auto",
         context_limit: int = 2048,
@@ -154,6 +158,10 @@ class VisionAdapter(BaseAdapter):
         seed: Optional[int] = None,
         device_name: Optional[str] = None,
         ngl_override: Optional[int] = None,
+        chat_template: Optional[str] = "auto",
+        no_warmup: bool = True,
+        pure_gpu: bool = True,
+        fit_off: bool = True,
     ) -> list[str]:
         """Assembles verified VLM CLI argument list conforming to modern llama-cli specifications."""
         import os
@@ -167,7 +175,7 @@ class VisionAdapter(BaseAdapter):
             ngl_val = str(ngl_override)
         elif target_backend == "cpu":
             ngl_val = "0"
-        elif target_backend in ("vulkan", "gpu"):
+        elif target_backend in ("vulkan", "gpu", "vulkan-force"):
             ngl_val = "99"
         else:
             ngl_val = "99"
@@ -177,17 +185,42 @@ class VisionAdapter(BaseAdapter):
             "-m", str(text_model_path),
             "--mmproj", str(vision_model_path),
             "--image", str(image_path),
-            "-f", str(prompt_file),
+        ]
+
+        if prompt_file:
+            cmd.extend(["-f", str(prompt_file)])
+        elif prompt:
+            cmd.extend(["-p", f"'{prompt}'"])
+
+        cmd.extend([
             "-t", thread_val,
             "-c", str(context_limit),
             "-n", str(max_tokens),
             "--temp", str(temperature),
             "-ngl", ngl_val,
             "--simple-io",
-        ]
+        ])
 
-        if target_backend in ("vulkan", "gpu") and device_name:
-            cmd.extend(["--device", device_name])
+        if chat_template:
+            if chat_template == "auto":
+                m_str = str(text_model_path).lower()
+                resolved_template = "chatml" if "qwen" in m_str else "smolvlm"
+            else:
+                resolved_template = chat_template
+            cmd.extend(["--chat-template", resolved_template])
+
+        if no_warmup:
+            cmd.append("--no-warmup")
+
+        if target_backend in ("vulkan", "gpu", "vulkan-force"):
+            if pure_gpu:
+                cmd.extend(["-ot", "token_embd.weight=Vulkan0"])
+            if fit_off:
+                cmd.extend(["-fit", "off"])
+            if device_name:
+                cmd.extend(["--device", device_name])
+        elif target_backend == "cpu":
+            cmd.append("--no-mmproj-offload")
 
         if repeat_penalty is not None:
             cmd.extend(["--repeat-penalty", str(repeat_penalty)])
