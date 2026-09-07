@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-09-07
+### Added
+- Native BitNet 1.58-bit Vulkan Compute Engine (`src/core/vulkan_bitnet_engine.cpp`) with 7 dedicated SPIR-V compute kernels.
+- Permanent Model VRAM Residency architecture pre-allocating 30 transformer layers (498 MB) and FP16 LM Head (626 MB) with zero bus traffic.
+- Fused token chain (`DispatchFullTokenChain`) reducing driver submissions to 1 per token.
+- FP16 LM Head GPU offload (`bitnet_gemv_f16.comp`) with native `unpackHalf2x16` SIMD dot products.
+- Real-device validation on Samsung Galaxy S25 Adreno 830 (17.56 t/s, 12.58x speedup) and Galaxy A35 Mali-G68 (3.47 t/s, 5.94x speedup).
+- First-class `BitnetAdapter` in `python/ameva_runtime/adapters/bitnet.py`.
+
+---
+
 ## [2.4.0] - 2026-09-07
 
 ### Added

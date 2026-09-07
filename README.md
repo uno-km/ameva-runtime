@@ -3,9 +3,11 @@
 [![PyPI](https://img.shields.io/pypi/v/ameva-runtime.svg?style=flat-square&color=0369a1)](https://pypi.org/project/ameva-runtime/)
 [![Python](https://img.shields.io/pypi/pyversions/ameva-runtime.svg?style=flat-square)](https://pypi.org/project/ameva-runtime/)
 [![npm](https://img.shields.io/npm/v/@ameva/runtime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
+[![GitHub Release](https://img.shields.io/github/v/release/uno-km/ameva-runtime?style=flat-square&color=0969da)](https://github.com/uno-km/ameva-runtime/releases/tag/v2.5.0)
 [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
+<img src="https://img.shields.io/badge/BitNet%201.58b-Vulkan%20Compute%20Accelerated-purple.svg?logo=vulkan&logoColor=white" alt="BitNet Vulkan">
 
-> Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime for Mobile & Edge
+> Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime (with BitNet 1.58-bit Vulkan Compute) for Mobile & Edge
 
 ---
 
@@ -15,9 +17,9 @@ AMEVA-Runtime is a hardware abstraction layer (HAL) and compute orchestration en
 
 ### 6-Modality Acceleration Matrix
 
-| Modality | Engine Integration | Status (v2.1.0) | Hardware Acceleration Mechanism |
+| Modality | Engine Integration | Status (v2.5.0) | Hardware Acceleration Mechanism |
 | :--- | :--- | :---: | :--- |
-| **1. LLM (Text)** | Llama.cpp (Qwen2.5, Llama 3.2) | **Production** | Full 25/25 layer VRAM offload (Adreno 35.80 t/s, Mali 4.44 t/s) |
+| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.5.0)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
 | **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
 | **3. TTS (Audio)** | Sherpa-NCNN / Piper | **Production** | Pure Vulkan GPU neural synthesis (Adreno RTF 0.264x, Mali RTF 1.146x) |
 | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
@@ -51,6 +53,14 @@ Tested on physical devices running Android 16 under Termux ARM64:
 | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | Validated |
 
 ---
+
+### 4. BitNet 1.58-bit LLM (Microsoft BitNet b1.58 2B-4T i2_s)
+| Target Device | Hardware Architecture | Active Backend | Generation Speed | Prompt Latency | Speedup | Status |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | **AMEVA Vulkan GPU** | **17.558 t/s** | **205.9 ms** | **12.58x** | **Verified (Ground Truth)** |
+| Galaxy S25 | Snapdragon 8 Elite / Oryon CPU | Native CPU (4 Threads) | 1.396 t/s | 2,041.0 ms | 1.00x | Baseline |
+| **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | **AMEVA Vulkan GPU** | **3.471 t/s** | **1,552.8 ms** | **5.94x** | **Verified (Ground Truth)** |
+| Galaxy A35 | Exynos 1380 / Cortex-A78 CPU | Native CPU (4 Threads) | 0.584 t/s | 8,775.0 ms | 1.00x | Baseline |
 
 ## Root-Cause Driver Solutions
 

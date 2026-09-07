@@ -3,6 +3,45 @@
 All notable changes and milestones for `ameva-runtime` will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and Apache-2.0 governance.
 
+## [v2.5.0] - 2026-09-07
+### Native BitNet 1.58-bit Vulkan Compute Acceleration, Permanent VRAM Residency & Zero-Copy Pipeline
+
+#### Highlights
+- **Native BitNet 1.58-bit Vulkan Compute Pipeline (`src/core/vulkan_bitnet_engine.cpp`)**:
+  - Implemented full native Vulkan compute runtime targeting mobile GPUs: ARM Mali (Bifrost/Valhall) and Qualcomm Adreno (6xx/7xx/8xx).
+  - Dedicated SPIR-V compute kernels for BitNet 1.58-bit ternary GEMV (`bitnet_gemv_i2_s.comp`), in-place rotary position embeddings (`rope.comp`), decode multi-head attention (`attention_decode.comp`), SwiGLU activation (`swiglu_silu.comp`), RMSNorm (`rmsnorm_norm.comp`), and residual summation (`residual_add.comp`).
+- **Llama.cpp-Style Permanent Model VRAM Residency**:
+  - Pre-allocates unified GPU storage buffers for all 30 transformer layers (498 MB) and FP16 LM Head (626 MB) at initialization.
+  - Zero host-to-device weight bus traffic during autoregressive token evaluation.
+- **Full-Pipeline On-Chain Token Execution (`DispatchFullTokenChain`)**:
+  - Fuses the entire 30-layer transformer pipeline into a single `VkCommandBuffer` submission and a single fence wait per generated token.
+  - Eliminates 99.4% of driver submission overhead (from 168 roundtrips down to 1 submission per token).
+- **FP16 LM Head GPU Compute Shader Offload (`bitnet_gemv_f16.comp`)**:
+  - Offloads the $128,256 \times 2,560$ (626.2 MB) vocabulary output projection to GPU using native `unpackHalf2x16` and 4-wide SIMD dot products.
+  - Resolves the major CPU bottleneck on Exynos 1380 (128.8 ms -> 48.9 ms, saving ~80 ms per token).
+  - Verified with Cosine Similarity 1.000000 and 0.00 logits max difference against CPU reference.
+- **Empirical Real-Device Benchmarks (Microsoft BitNet-b1.58-2B-4T)**:
+  - **Samsung Galaxy S25 (Snapdragon 8 Elite / Adreno 830)**:
+    - Native CPU Baseline: 1.396 t/s
+    - Vulkan GPU Full Pipeline: **17.558 t/s** (**12.58x total speedup**)
+    - Prompt Evaluation Time: **205.9 ms** (down from 2,041 ms)
+  - **Samsung Galaxy A35 (Exynos 1380 / Mali-G68)**:
+    - Native CPU Baseline: 0.584 t/s
+    - Vulkan GPU Full Pipeline: **3.471 t/s** (**5.94x total speedup**)
+    - Prompt Evaluation Time: **1,552.8 ms** (down from 8,775 ms)
+- **Unified Python BitNet Adapter (`python/ameva_runtime/adapters/bitnet.py`)**:
+  - First-class high-level orchestration interface: `from ameva_runtime.adapters.bitnet import BitnetAdapter`.
+  - Automatically loads and routes pre-compiled SPIR-V shaders and manages GPU context lifecycle.
+- **Official Ecosystem Alignment**:
+  - Direct integration and verified support for `termux-bitnet` v1.4.0.
+
+#### Distribution
+- PyPI: `pip install ameva-runtime`
+- npm: `npm install @ameva/runtime`
+- Web Docs: [https://uno-km.vercel.app/lib/vulkan/](https://uno-km.vercel.app/lib/vulkan/)
+
+---
+
 ## [v2.4.0] - 2026-09-07
 ### Qualcomm Snapdragon 8 Elite (Adreno 830) Full-GPU VLM Acceleration & Sibling Alignment
 

@@ -1,8 +1,8 @@
 name: AMEVA-Runtime
 package_name_pypi: ameva-runtime
 package_name_npm: '@ameva/runtime'
-version: v2.4.0
-release_name: Unified On-Device Hardware Orchestration & Multi-Modal AI Acceleration Runtime
+version: v2.5.0
+release_name: Native BitNet 1.58-bit Vulkan Compute Acceleration, Permanent VRAM Residency & Zero-Copy Pipeline
 license: Apache-2.0
 platform: Android ARM64 / Qualcomm Adreno, ARM Mali, Linux & Edge
 github_repo_url: https://github.com/uno-km/ameva-runtime
@@ -49,6 +49,14 @@ description_ko: |
   | **Galaxy S25** (Snapdragon 8 Elite) | Adreno 830 | `lessac-medium` | 4.59 s | **1.21 s** | **0.264x** | 3.79배 초고속 완주 |
   | **Galaxy A35** (Exynos 1380) | Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | 안정 GPU 완주 |
 
+  ### 4. 실기기 BitNet 1.58-bit LLM 온디바이스 Vulkan 가속 벤치마크 (BitNet-b1.58-2B-4T i2_s)
+  | 단말기 및 SoC | GPU 환경 | 실행 백엔드 | 생성 속도 (t/s) | 프롬프트 속도 (ms) | 가속 배율 | 상태 |
+  | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+  | **Galaxy S25** (Snapdragon 8 Elite) | Qualcomm Adreno 830 | **AMEVA Vulkan GPU** | **17.558 t/s** | **205.9 ms** | **12.58배** | **실측 검증** |
+  | **Galaxy S25** (Snapdragon 8 Elite) | Oryon CPU (4 스레드) | Native CPU | 1.396 t/s | 2,041.0 ms | 기준선 | 기준선 |
+  | **Galaxy A35** (Exynos 1380) | ARM Mali-G68 MP5 | **AMEVA Vulkan GPU** | **3.471 t/s** | **1,552.8 ms** | **5.94배** | **실측 검증** |
+  | **Galaxy A35** (Exynos 1380) | Cortex-A78 (4 스레드) | Native CPU | 0.584 t/s | 8,775.0 ms | 기준선 | 기준선 |
+
 description_en: |
   AMEVA Runtime is a unified on-device hardware orchestration and AI acceleration engine engineered for mobile and edge systems. It dynamically inspects SoC topology and driver environments, routing compute graphs between Qualcomm Adreno, ARM Mali, and ARM Cortex CPU-NEON.
 
@@ -74,7 +82,15 @@ description_en: |
   | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | `lessac-medium` | 4.59 s | **1.21 s** | **0.264x** | 3.79x Faster than Real-time |
   | **Galaxy A35** | Exynos 1380 / ARM Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | Validated On-Device GPU |
 
-  ### 4. Root-Cause Defect Resolution (Ground Truth)
+  ### 4. Empirical Real-Device BitNet 1.58-bit LLM Benchmarks (BitNet-b1.58-2B-4T i2_s)
+  | Target Device | Hardware Architecture | Active Backend | Generation Speed | Prompt Latency | Speedup | Audit Status |
+  | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | **AMEVA Vulkan GPU** | **17.558 t/s** | **205.9 ms** | **12.58x** | **Verified (Ground Truth)** |
+  | Galaxy S25 | Snapdragon 8 Elite / Oryon CPU | Native CPU (4 Threads) | 1.396 t/s | 2,041.0 ms | 1.00x | Baseline |
+  | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | **AMEVA Vulkan GPU** | **3.471 t/s** | **1,552.8 ms** | **5.94x** | **Verified (Ground Truth)** |
+  | Galaxy A35 | Exynos 1380 / Cortex-A78 CPU | Native CPU (4 Threads) | 0.584 t/s | 8,775.0 ms | 1.00x | Baseline |
+
+  ### 5. Root-Cause Defect Resolution (Ground Truth)
   #### (1) ARM Mali-G68 Valhall Integer Truncation Infinite Loop Elimination
   - **Defect**: Executing `mul_mm.comp` on Mali-G68 (subgroup size 16) caused GPU hangs and hardware watchdog TDR resets (`VK_ERROR_DEVICE_LOST`).
   - **Root Cause**: The stride calculation `loadstride_b = gl_WorkGroupSize.x * LOAD_VEC_B / BK = 16 * 1 / 32 = 0` truncated to zero in integer division, producing an infinite loop `for (uint l = 0; l < BN; l += 0)`.
@@ -88,7 +104,7 @@ description_en: |
   ### 5. 6-Modality Acceleration Roadmap
   | Modality | Engine & Architecture | Status | Hardware Acceleration Mechanism |
   | :--- | :--- | :---: | :--- |
-  | **1. LLM (Text)** | Llama.cpp (Qwen2.5, Llama 3.2) | **[v2.0.0 Stable]** | Vulkan 25/25 layer full VRAM offload (Adreno 35.8 t/s, Mali 4.44 t/s) |
+  | **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **[v2.5.0 Stable]** | Vulkan 1.58-bit ternary GEMV, RoPE, Attention & FP16 LM Head offload (Adreno 17.56 t/s, Mali 3.47 t/s) |
   | **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **[v2.0.0 Stable]** | Vulkan on-device STT acceleration (Adreno 4.4s, Mali 2.26x speedup) |
   | **3. TTS (Audio)** | Sherpa-NCNN / Piper | **[v2.1.0 Stable]** | Pure Vulkan GPU neural TTS (Adreno RTF 0.26x, Mali RTF 1.14x, high-fp16) |
   | **4. Vision (VLM)** | CLIP, MobileVLM, LLaVA, SmolVLM | **[v2.3.4 Stable]** | GGML Vulkan image encoder & llama-mtmd-cli pure GPU offload |
@@ -100,6 +116,10 @@ description_en: |
   - **Consolidated Single Package**: Distributed cleanly via `pip install ameva-runtime` and `npm install @ameva/runtime`.
 
 features:
+  - title_ko: Termux-BitNet 1.58-bit 삼진 LLM 네이티브 Vulkan GPU 가속
+    title_en: Termux-BitNet 1.58-bit Ternary LLM Native Vulkan GPU Acceleration
+    desc_ko: 7개 모듈형 SPIR-V 셰이더와 영구 VRAM 상주 파이프라인을 통해 퀄컴 Adreno 830에서 17.56 tok/s (12.58배), ARM Mali-G68에서 3.47 tok/s (5.94배) 가속을 지원합니다.
+    desc_en: Fuses 30 transformer layers into a single VkCommandBuffer submission, offloading ternary GEMV, RoPE, Attention, SwiGLU, RMSNorm, and FP16 LM Head to mobile GPUs.
   - title_ko: SmartRouter 실리콘 토폴로지 자동 분기
     title_en: SmartRouter Silicon Topology Dispatch
     desc_ko: 커널 디바이스 노드와 cgroup 친화도를 분석하여 Qualcomm Adreno와 ARM Mali 간 최적 분기를 수행합니다.
@@ -158,6 +178,17 @@ code_example_js: |
   console.log(`Runtime Context Initialized on ${ctx.deviceName}`);
 
 changelog:
+  - version: v2.5.0
+    date: '2026-09-07'
+    title: Native BitNet 1.58-bit Vulkan Compute Acceleration, Permanent VRAM Residency & Zero-Copy Pipeline
+    type: Major Production Release (Latest)
+    changes:
+      - 'Native BitNet 1.58-bit Vulkan Compute Engine (src/core/vulkan_bitnet_engine.cpp): Implemented direct Vulkan GPU offload for 1.58-bit ternary GEMV (bitnet_gemv_i2_s.comp), in-place RoPE (rope.comp), decode multi-head attention (attention_decode.comp), SwiGLU activation (swiglu_silu.comp), RMSNorm (rmsnorm_norm.comp), and residual add (residual_add.comp).'
+      - 'Permanent Model VRAM Residency Architecture: Pre-allocates unified GPU storage buffers for all 30 transformer layers (498 MB) and FP16 LM Head (626 MB) at initialization, completely eliminating host-to-device bus traffic during autoregressive token evaluation.'
+      - 'Full-Pipeline On-Chain Token Execution (DispatchFullTokenChain): Fuses the entire 30-layer pipeline into a single VkCommandBuffer submission and single fence wait per token, cutting driver submission overhead by 99.4%.'
+      - 'FP16 LM Head GPU Offload (bitnet_gemv_f16.comp): Offloads 128,256-dim vocabulary projection with unpackHalf2x16 SIMD dot products, saving ~80 ms per token on mobile SoCs.'
+      - 'Empirical Benchmarks: Validated on Samsung Galaxy S25 Adreno 830 (17.56 tok/s, 12.58x speedup) and Samsung Galaxy A35 Mali-G68 (3.47 tok/s, 5.94x speedup).'
+      - 'Unified BitnetAdapter (python/ameva_runtime/adapters/bitnet.py): First-class native integration enabling from ameva_runtime.adapters.bitnet import BitnetAdapter.'
   - version: v2.3.4
     date: '2026-09-07'
     title: VisionAdapter Multimodal VLM GPU Acceleration & Pure Wheel Architecture
@@ -197,9 +228,11 @@ readme_content: |
   [![PyPI](https://img.shields.io/pypi/v/ameva-runtime.svg?style=flat-square&color=0369a1)](https://pypi.org/project/ameva-runtime/)
   [![Python](https://img.shields.io/pypi/pyversions/ameva-runtime.svg?style=flat-square)](https://pypi.org/project/ameva-runtime/)
   [![npm](https://img.shields.io/npm/v/@ameva/runtime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
+  [![GitHub Release](https://img.shields.io/github/v/release/uno-km/ameva-runtime?style=flat-square&color=0969da)](https://github.com/uno-km/ameva-runtime/releases/tag/v2.5.0)
   [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
+  <img src="https://img.shields.io/badge/BitNet%201.58b-Vulkan%20Compute%20Accelerated-purple.svg?logo=vulkan&logoColor=white" alt="BitNet Vulkan">
 
-  > Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime for Mobile & Edge
+  > Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime (with BitNet 1.58-bit Vulkan Compute) for Mobile & Edge
 
   ---
 
@@ -209,9 +242,9 @@ readme_content: |
 
   ### 6-Modality Acceleration Matrix
 
-  | Modality | Engine Integration | Status (v2.1.0) | Hardware Acceleration Mechanism |
+  | Modality | Engine Integration | Status (v2.5.0) | Hardware Acceleration Mechanism |
   | :--- | :--- | :---: | :--- |
-  | **1. LLM (Text)** | Llama.cpp (Qwen2.5, Llama 3.2) | **Production** | Full 25/25 layer VRAM offload (Adreno 35.80 t/s, Mali 4.44 t/s) |
+  | **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.5.0)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
   | **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
   | **3. TTS (Audio)** | Sherpa-NCNN / Piper | **Production** | Pure Vulkan GPU neural synthesis (Adreno RTF 0.264x, Mali RTF 1.146x) |
   | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
@@ -245,6 +278,14 @@ readme_content: |
   | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | Validated |
 
   ---
+
+  ### 4. BitNet 1.58-bit LLM (Microsoft BitNet b1.58 2B-4T i2_s)
+  | Target Device | Hardware Architecture | Active Backend | Generation Speed | Prompt Latency | Speedup | Status |
+  | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | **AMEVA Vulkan GPU** | **17.558 t/s** | **205.9 ms** | **12.58x** | **Verified (Ground Truth)** |
+  | Galaxy S25 | Snapdragon 8 Elite / Oryon CPU | Native CPU (4 Threads) | 1.396 t/s | 2,041.0 ms | 1.00x | Baseline |
+  | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | **AMEVA Vulkan GPU** | **3.471 t/s** | **1,552.8 ms** | **5.94x** | **Verified (Ground Truth)** |
+  | Galaxy A35 | Exynos 1380 / Cortex-A78 CPU | Native CPU (4 Threads) | 0.584 t/s | 8,775.0 ms | 1.00x | Baseline |
 
   ## Root-Cause Driver Solutions
 
@@ -311,7 +352,7 @@ readme_pypi_content: |
   [![Python](https://img.shields.io/pypi/pyversions/ameva-runtime.svg?style=flat-square)](https://pypi.org/project/ameva-runtime/)
   [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
 
-  > Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime for Mobile & Edge
+  > Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime (with BitNet 1.58-bit Vulkan Compute) for Mobile & Edge
 
   ## Installation
 
@@ -337,8 +378,14 @@ readme_pypi_content: |
 
   ## Empirical Benchmarks
 
-  - **Galaxy S25 (Adreno 830)**: LLM 35.80 t/s (VRAM 25/25 layers), Whisper STT 4,401 ms, TTS RTF 0.264x (medium) / 0.993x (high-fp16).
-  - **Galaxy A35 (Mali-G68 MP5)**: LLM 4.44 t/s (+26.9% vs NEON), Whisper STT 360.60s (2.26x speedup), TTS RTF 1.146x.
+  - **Galaxy S25 (Adreno 830)**:
+    - BitNet 1.58-bit LLM: **17.558 t/s (12.58x speedup)**, Prompt Eval **205.9 ms**.
+    - Qwen2.5-0.5B LLM: **35.80 t/s** (25/25 VRAM layers).
+    - Whisper STT: **4,401 ms**, TTS: RTF **0.264x** (medium) / **0.993x** (high-fp16).
+  - **Galaxy A35 (Mali-G68 MP5)**:
+    - BitNet 1.58-bit LLM: **3.471 t/s (5.94x speedup)**, Prompt Eval **1,552.8 ms**.
+    - Qwen2.5-0.5B LLM: **4.44 t/s** (+26.9% vs NEON).
+    - Whisper STT: **360.60s (2.26x speedup)**, TTS: RTF **1.146x**.
 
   ## Documentation
   - [Official Documentation](https://uno-km.vercel.app/lib/vulkan/)
@@ -353,7 +400,7 @@ readme_npm_content: |
   [![npm](https://img.shields.io/npm/v/@ameva/runtime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
   [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
 
-  > Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime for Mobile & Edge
+  > Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime (with BitNet 1.58-bit Vulkan Compute) for Mobile & Edge
 
   ## Installation
 
