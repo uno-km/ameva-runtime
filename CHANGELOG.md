@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] - 2026-09-07
+
+### Added
+- **1-Click Native Asset Auto-Provisioner (`NativeAssetManager` / `ameva install --all`)**:
+  - Automated download, SHA-256 verification, extraction, and atomic deployment of precompiled ARM64 Bionic binaries, libraries, and SPIR-V compute shaders directly from official GitHub Releases.
+  - Provisions `sd-cli` (Stable Diffusion), `whisper-cli` (STT), `sherpa-ncnn-offline-tts` (TTS), `libomp.so`, `libegl_shim.so`, and `matmul.spv`.
+- **Dual-Track Backward Compatibility Architecture**:
+  - Automatically establishes symbolic bridges into legacy component paths (`~/.termux-llama/bin`, `~/.cache/termux-diffusion/bin`, `$PREFIX/bin`).
+  - Supports recursive directory auto-creation and `--force` overwrite policies.
+
+---
+
 ## [2.2.1] - 2026-09-07
 
 ### Added

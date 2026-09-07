@@ -29,6 +29,7 @@ from .exceptions import (
     ArchitectureUnsupportedError,
     InvalidAffinityError,
 )
+from .installer import NativeAssetManager, provision_native_assets
 
 from ._version import __version__
 
@@ -54,6 +55,8 @@ __all__ = [
     "IRuntimeConsumer",
     "IVulkanConsumer",
     "BindingResult",
+    "NativeAssetManager",
+    "provision_native_assets",
     "AmevaRuntimeError",
     "HardwareDetectionError",
     "SubsystemInitError",

@@ -33,7 +33,23 @@ To install with full multi-modal engine integrations (STT, TTS, LLM, Diffusion, 
 pip install "ameva-runtime[all]"
 ```
 
-### 1.3 Node.js / TypeScript SDK & CLI Installation
+### 1.3 1-Click Native Hardware Asset Provisioning (One-Touch Auto-Install)
+Provision precompiled ARM64 Bionic binaries, native compute shaders, and hardware drivers in a single command without building from source:
+```bash
+# Provision all modalities (Diffusion, STT, TTS, OpenMP, EGL Shim, SPIR-V Shaders)
+ameva install --all
+
+# Or provision a specific modality with force overwrite
+ameva install --modality diffusion --force
+```
+This automatically provisions and links:
+* **Stable Diffusion CLI (`sd-cli`)**: `~/.local/bin/sd-cli` (and legacy path `~/.cache/termux-diffusion/bin/sd-cli`)
+* **Whisper STT (`whisper-cli`)**: `~/.local/bin/whisper-cli` (and `$PREFIX/bin/whisper-cli`)
+* **Sherpa-NCNN TTS (`sherpa-ncnn-offline-tts`)**: `~/.local/bin/sherpa-ncnn-offline-tts`
+* **Vulkan HAL Shim & OpenMP (`libegl_shim.so`, `libomp.so`)**: `$PREFIX/lib/`
+* **SPIR-V Zero-Stride Bypass Shader (`matmul.spv`)**: `~/.local/share/ameva/shaders/matmul.spv`
+
+### 1.4 Node.js / TypeScript SDK & CLI Installation
 Install globally or as a project dependency via `npm`:
 ```bash
 # Global CLI tools (ameva, ameva-run, ameva-gpu)
@@ -43,7 +59,7 @@ npm install -g @ameva/runtime
 npm install @ameva/runtime
 ```
 
-### 1.4 Android Bionic Vulkan Dynamic ICD Discovery
+### 1.5 Android Bionic Vulkan Dynamic ICD Discovery
 AMEVA-Runtime communicates directly with the vendor Vulkan Installable Client Driver (ICD) provided by the Android OS:
 * **Primary Search Path**: `/system/lib64/libvulkan.so` (Bionic C ABI)
 * **Secondary Search Path**: `/vendor/lib64/libvulkan.so`

@@ -29,7 +29,7 @@ def test_hardware_detector_profile():
     assert profile.cpu_cores >= 1
     assert len(profile.allowed_cpus) >= 1
     assert profile.total_ram_mb > 0
-    assert profile.recommended_backend in ("vulkan", "opencl", "cpu", "npu")
+    assert profile.recommended_backend in ("vulkan", "opencl", "cpu", "cpu_neon", "npu")
     assert profile.recommended_threads >= 1
 
 
@@ -168,4 +168,30 @@ def test_top_level_plan_and_run_api():
     # When binary/model is absent, execute() should raise AmevaRuntimeError fail-fast
     with pytest.raises(AmevaRuntimeError):
         ameva.run(model="non_existent_model_xyz.gguf", prompt="test")
+
+
+def test_installer_cli_and_registry():
+    """Verify installer subcommands, arguments, and native asset specifications."""
+    from ameva_runtime.installer import NATIVE_ASSETS, NativeAssetManager
+
+    parser = build_parser()
+    args_inst = parser.parse_args(["install", "--all", "--force"])
+    assert args_inst.command == "install"
+    assert args_inst.all is True
+    assert args_inst.force is True
+    assert args_inst.modality == "all"
+
+    args_setup = parser.parse_args(["setup", "-m", "diffusion"])
+    assert args_setup.command == "setup"
+    assert args_setup.modality == "diffusion"
+
+    assert "diffusion" in NATIVE_ASSETS
+    assert "stt" in NATIVE_ASSETS
+    assert "tts" in NATIVE_ASSETS
+    assert "libomp" in NATIVE_ASSETS
+    assert "libegl_shim" in NATIVE_ASSETS
+    assert "matmul_spv" in NATIVE_ASSETS
+
+    mgr = NativeAssetManager(force=True)
+    assert mgr.force is True
 

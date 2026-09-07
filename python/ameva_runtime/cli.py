@@ -184,8 +184,22 @@ def cmd_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_install(args: argparse.Namespace) -> int:
+    """1-Click auto-provisioning for precompiled ARM64 native binaries and dual-track symlinks."""
+    from .installer import NativeAssetManager
+
+    modality = getattr(args, "modality", "all")
+    modalities = None if modality == "all" else [modality]
+    force = getattr(args, "force", False)
+
+    manager = NativeAssetManager(force=force)
+    results = manager.provision_all(modalities=modalities)
+    return 0 if all(results.values()) else 1
+
+
 def _find_llama_cli() -> Optional[str]:
     search_paths = [
+        os.path.expanduser("~/.local/bin/llama-cli"),
         os.path.expanduser("~/vulkan-llama/bin/llama-cli"),
         "/data/data/com.termux/files/home/vulkan-llama/bin/llama-cli",
         os.path.expanduser("~/.termux-llama/bin/llama-cli"),
@@ -229,6 +243,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
 
+    # install
+    install_parser = subparsers.add_parser(
+        "install",
+        help="1-Click auto-provision precompiled ARM64 native binaries & hardware accelerators",
+    )
+    install_parser.add_argument("--all", action="store_true", help="Install all native binaries and accelerators")
+    install_parser.add_argument("--force", "-f", action="store_true", help="Force overwrite existing binaries")
+    install_parser.add_argument(
+        "--modality", "-m",
+        choices=["all", "diffusion", "stt", "tts", "libomp", "libegl_shim", "matmul_spv"],
+        default="all",
+        help="Target modality to provision (default: all)",
+    )
+
+    # setup (alias)
+    setup_parser = subparsers.add_parser("setup", help="Alias for install")
+    setup_parser.add_argument("--all", action="store_true", help="Install all native binaries and accelerators")
+    setup_parser.add_argument("--force", "-f", action="store_true", help="Force overwrite existing binaries")
+    setup_parser.add_argument(
+        "--modality", "-m",
+        choices=["all", "diffusion", "stt", "tts", "libomp", "libegl_shim", "matmul_spv"],
+        default="all",
+        help="Target modality to provision (default: all)",
+    )
+
     # doctor
     subparsers.add_parser("doctor", help="Run 12-stage hardware diagnostic")
 
@@ -261,7 +300,9 @@ def main() -> int:
         return 0
 
     args = parser.parse_args()
-    if args.command == "doctor":
+    if args.command in ("install", "setup"):
+        return cmd_install(args)
+    elif args.command == "doctor":
         return cmd_doctor(args)
     elif args.command == "profile":
         return cmd_profile(args)
