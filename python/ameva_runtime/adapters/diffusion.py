@@ -151,6 +151,8 @@ class DiffusionAdapter(BaseAdapter):
     def get_execution_env(cls, extra_env: Optional[dict[str, str]] = None) -> dict[str, str]:
         """Assemble environment variables including LD_PRELOAD shim for mobile Vulkan HAL."""
         env = dict(os.environ)
+        # Essential bypass for Qualcomm Adreno & mobile Vulkan debug CPU check overhead
+        env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
         if extra_env:
             env.update(extra_env)
 
@@ -171,14 +173,17 @@ class DiffusionAdapter(BaseAdapter):
         output_path: str,
         width: int = 512,
         height: int = 512,
-        steps: int = 4,
+        steps: int = 2,
         cfg_scale: float = 1.0,
+        guidance: Optional[float] = None,
         threads: Any = "auto",
         target_backend: str = "auto",
         sampling_method: Optional[str] = None,
         seed: Optional[int] = None,
         vae_path: Optional[str] = None,
         vae_tiling: bool = False,
+        backend: Optional[str] = None,
+        is_adreno: bool = False,
     ) -> list[str]:
         """최신 sd-cli 규격에 부합하는 안전하고 검증된 Diffusion CLI 인자 목록을 조립합니다."""
         if threads == "auto" or threads is None:
@@ -199,9 +204,15 @@ class DiffusionAdapter(BaseAdapter):
             "--cfg-scale", str(cfg_scale),
         ]
 
+        if guidance is not None:
+            cmd.extend(["--guidance", str(guidance)])
+
         if target_backend == "cpu":
             cmd.append("--offload-to-cpu")
-        # In Vulkan GPU or auto mode on supported hardware, sd-cli runs native Vulkan without broken flags
+        elif backend:
+            cmd.extend(["--backend", str(backend)])
+        elif is_adreno or target_backend in ("vulkan", "gpu"):
+            cmd.extend(["--backend", "clip=vulkan0,diffusion=vulkan0,vae=vulkan0"])
 
         if vae_tiling:
             cmd.append("--vae-tiling")

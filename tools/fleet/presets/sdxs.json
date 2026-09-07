@@ -1,0 +1,15 @@
+{
+  "name": "sdxs",
+  "display_name": "SDXS Pure Distill (2-Step High Quality)",
+  "description": "Optimized 2-step distilled latent diffusion for Qualcomm Adreno & Mali mobile Vulkan GPUs.",
+  "model_id": "sdxs-512-0.9",
+  "model_filename": "sdxs-512-0.9.q8_0.gguf",
+  "sample_method": "euler_a",
+  "steps": 2,
+  "cfg_scale": 1.0,
+  "guidance": 3.5,
+  "width": 512,
+  "height": 512,
+  "vae_tiling": false,
+  "target_latency_sec": 15.0
+}

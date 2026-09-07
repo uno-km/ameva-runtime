@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.4] - 2026-09-07
+
+### Added
+- **Fleet Orchestration & Cluster Management Subsystem (`tools/fleet/`)**:
+  - Remote SSH/SCP orchestration for 5-device mobile cluster (Galaxy S25, S21, S20+, A35, A53).
+  - Multi-device Vulkan Stable Diffusion remote deployment, benchmark execution, and automated image entropy/clipping quality audits.
+  - 8 production-grade mobile diffusion presets (`sdxs.json`, `turbo.json`, `fast.json`, `speed.json`, `anime.json`, `realistic.json`, etc.).
+- **Mobile Vulkan Diffusion Acceleration & Adreno Bypass**:
+  - Introduced `GGML_VULKAN_SKIP_CHECKS="999999999"` eliminating redundant host-side CPU validation overhead on Snapdragon / Adreno GPUs.
+  - Added explicit multi-engine Vulkan targeting (`clip=vulkan0,diffusion=vulkan0,vae=vulkan0`) for crash-free Adreno execution.
+  - Added `--guidance` support and optimized default sampling steps for edge diffusion.
+
+---
+
 ## [2.2.3] - 2026-09-07
 
 ### Added

@@ -1,0 +1,14 @@
+{
+  "name": "speed",
+  "display_name": "Speed Maximum Throughput",
+  "description": "Minimal step generation for continuous streaming frames.",
+  "model_id": "sdxs-512-0.9",
+  "model_filename": "sdxs-512-0.9.q8_0.gguf",
+  "sample_method": "euler",
+  "steps": 1,
+  "cfg_scale": 1.0,
+  "width": 512,
+  "height": 512,
+  "vae_tiling": false,
+  "target_latency_sec": 2.0
+}

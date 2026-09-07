@@ -1,0 +1,14 @@
+{
+  "name": "anime-experimental",
+  "display_name": "Anime Experimental High-Res",
+  "description": "Detailed stylized anime with DPM++ and dynamic CFG scheduling.",
+  "model_id": "anime-style-lcm",
+  "model_filename": "anime-style-lcm.q4_0.gguf",
+  "sample_method": "euler_a",
+  "steps": 15,
+  "cfg_scale": 5.5,
+  "width": 512,
+  "height": 512,
+  "vae_tiling": true,
+  "target_latency_sec": 32.0
+}

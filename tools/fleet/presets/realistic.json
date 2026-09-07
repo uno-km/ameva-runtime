@@ -1,0 +1,14 @@
+{
+  "name": "realistic",
+  "display_name": "Realistic Vision Photo",
+  "description": "High-fidelity photographic realism with 20 steps and VAE tiling.",
+  "model_id": "realistic-vision-v5.1",
+  "model_filename": "realistic-vision-v5.1.q4_0.gguf",
+  "sample_method": "euler_a",
+  "steps": 20,
+  "cfg_scale": 6.0,
+  "width": 512,
+  "height": 512,
+  "vae_tiling": true,
+  "target_latency_sec": 45.0
+}

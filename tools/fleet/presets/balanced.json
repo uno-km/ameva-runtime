@@ -1,0 +1,14 @@
+{
+  "name": "balanced",
+  "display_name": "Balanced (DreamShaper LCM)",
+  "description": "Optimal trade-off between artistic fidelity and latency.",
+  "model_id": "dreamshaper-v7-lcm",
+  "model_filename": "dreamshaper-v7-lcm.q4_0.gguf",
+  "sample_method": "lcm",
+  "steps": 6,
+  "cfg_scale": 1.8,
+  "width": 512,
+  "height": 512,
+  "vae_tiling": false,
+  "target_latency_sec": 12.0
+}
