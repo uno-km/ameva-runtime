@@ -65,3 +65,5 @@ secrets.json
 scratch/
 cluster_config.json
 !cluster_config.example.json
+fleet_hosts.json
+.fleet*

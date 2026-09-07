@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-09-07
+
+### Added
+- **Fleet Orchestration & Cluster Management Subsystem (`tools/fleet/`)**:
+  - Remote SSH/SCP orchestration for 5-device mobile cluster (Galaxy S25, S21, S20+, A35, A53) with zero-leak credential isolation (`~/.config/ameva/fleet_hosts.json`).
+  - Multi-device Vulkan Stable Diffusion remote deployment, benchmark execution, and automated image entropy/clipping quality audits.
+  - 8 production-grade mobile diffusion presets (`sdxs.json`, `turbo.json`, `fast.json`, `speed.json`, `anime.json`, `realistic.json`, `balanced.json`, `anime-experimental.json`).
+- **Mobile Vulkan Diffusion Acceleration & Adreno Bypass**:
+  - Embedded `GGML_VULKAN_SKIP_CHECKS="999999999"` default in execution environment, eliminating host-side debug CPU overhead on Qualcomm Adreno devices.
+  - Added explicit multi-engine Vulkan targeting (`clip=vulkan0,diffusion=vulkan0,vae=vulkan0`) for crash-free Adreno execution.
+  - Added `--guidance` support and optimized default sampling steps for edge diffusion.
+- **Credential Security & Infrastructure Scrubbing**:
+  - Decoupled physical device hostnames, Tailscale IPs, and user UIDs from public source tree.
+
+---
+
 ## [2.2.4] - 2026-09-07
 
 ### Added
