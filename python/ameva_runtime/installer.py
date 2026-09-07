@@ -10,14 +10,35 @@ import os
 import shutil
 import sys
 import tarfile
+import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from ._version import __version__
+
 logger = logging.getLogger("ameva_runtime.installer")
 
-GITHUB_RELEASE_BASE = "https://github.com/uno-km/ameva-runtime/releases/download/v2.2.1"
+AMEVA_RUNTIME_GITHUB_REPO = "uno-km/ameva-runtime"
+GITHUB_RELEASE_LATEST = f"https://github.com/{AMEVA_RUNTIME_GITHUB_REPO}/releases/latest/download"
+
+
+def get_release_base_url() -> str:
+    """Resolve GitHub release asset base URL dynamically via 3-tier fallback chain:
+    1. Explicit environment variable: AMEVA_RELEASE_BASE or AMEVA_RELEASE_TAG
+    2. Versioned release tag matching current package version: v{__version__}
+    3. Latest release download endpoint: GITHUB_RELEASE_LATEST
+    """
+    if custom_base := os.environ.get("AMEVA_RELEASE_BASE"):
+        return custom_base.rstrip("/")
+    if custom_tag := os.environ.get("AMEVA_RELEASE_TAG"):
+        tag = custom_tag if custom_tag.startswith("v") else f"v{custom_tag}"
+        return f"https://github.com/{AMEVA_RUNTIME_GITHUB_REPO}/releases/download/{tag}"
+    return f"https://github.com/{AMEVA_RUNTIME_GITHUB_REPO}/releases/download/v{__version__}"
+
+
+GITHUB_RELEASE_BASE = get_release_base_url()
 
 # Standard filesystem locations in Termux / Linux
 HOME = Path(os.environ.get("HOME", os.path.expanduser("~")))
@@ -44,7 +65,7 @@ class AssetSpec:
     description: str = ""
 
 
-# SSOT Registry of Native Compiled Assets in v2.2.1
+# SSOT Registry of Native Compiled Assets
 NATIVE_ASSETS: Dict[str, AssetSpec] = {
     "diffusion": AssetSpec(
         name="diffusion",
@@ -124,8 +145,8 @@ NATIVE_ASSETS: Dict[str, AssetSpec] = {
 class NativeAssetManager:
     """1-Click Native Hardware Asset Provisioner for AMEVA Runtime."""
 
-    def __init__(self, base_url: str = GITHUB_RELEASE_BASE, force: bool = False):
-        self.base_url = base_url
+    def __init__(self, base_url: Optional[str] = None, force: bool = False):
+        self.base_url = (base_url or get_release_base_url()).rstrip("/")
         self.force = force
 
     def provision_all(self, modalities: Optional[List[str]] = None) -> Dict[str, bool]:
@@ -138,7 +159,7 @@ class NativeAssetManager:
         results: Dict[str, bool] = {}
 
         print("=" * 72)
-        print("   AMEVA Runtime: Native Asset Auto-Provisioner (v2.2.1)")
+        print(f"   AMEVA Runtime: Native Asset Auto-Provisioner (v{__version__})")
         print("=" * 72)
         print(f"[*] Base Distribution Server : {self.base_url}")
         print(f"[*] Target System Root       : {HOME}")
@@ -176,10 +197,20 @@ class NativeAssetManager:
         temp_dest = target_dir / f".{spec.filename}.tmp"
 
         try:
-            # 1. Download
+            # 1. Download with dynamic 3-tier fallback (tag -> latest)
             print(f"    -> Downloading: {spec.filename} ...")
-            req = urllib.request.Request(download_url, headers={"User-Agent": "AMEVA-Installer/2.2.1"})
-            with urllib.request.urlopen(req, timeout=60) as resp, open(temp_dest, "wb") as out_f:
+            req = urllib.request.Request(download_url, headers={"User-Agent": f"AMEVA-Installer/{__version__}"})
+            try:
+                resp = urllib.request.urlopen(req, timeout=60)
+            except urllib.error.HTTPError as http_err:
+                if http_err.code == 404 and self.base_url != GITHUB_RELEASE_LATEST:
+                    fallback_url = f"{GITHUB_RELEASE_LATEST}/{spec.filename}"
+                    print(f"    -> Release tag URL returned 404; falling back to latest release: {fallback_url}")
+                    fallback_req = urllib.request.Request(fallback_url, headers={"User-Agent": f"AMEVA-Installer/{__version__}"})
+                    resp = urllib.request.urlopen(fallback_req, timeout=60)
+                else:
+                    raise
+            with resp, open(temp_dest, "wb") as out_f:
                 total_len = resp.headers.get("Content-Length")
                 total_bytes = int(total_len) if total_len else 0
                 downloaded = 0
@@ -271,7 +302,7 @@ class NativeAssetManager:
 def provision_native_assets(
     modalities: Optional[List[str]] = None,
     force: bool = False,
-    base_url: str = GITHUB_RELEASE_BASE,
+    base_url: Optional[str] = None,
 ) -> Dict[str, bool]:
     """Programmatic entrypoint for AMEVA Native Asset Auto-Provisioning."""
     manager = NativeAssetManager(base_url=base_url, force=force)
