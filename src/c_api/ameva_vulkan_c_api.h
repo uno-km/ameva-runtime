@@ -21,6 +21,8 @@ typedef struct {
     char driver_version[64];
     char loader_path[256];
     char recommended_backend[32];
+    bool compute_certified;
+    bool model_certified;
 } AmevaDiagnosticResult;
 
 /**

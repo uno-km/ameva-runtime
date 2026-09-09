@@ -173,6 +173,10 @@ class DiagnosticReport:
     recommended_backend: str
     stages: List[StageReport] = field(default_factory=list)
     profile_quirks: dict = field(default_factory=dict)
+    device_id: int = 0
+    api_version: int = 0
+    driver_version_raw: int = 0
+    verification_source: str = "native_c_hal"
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +275,9 @@ class Doctor:
         device_name = "Unknown"
         driver_version = "Unknown"
         vendor_id = 0
+        device_id = 0
+        api_ver = 0
+        raw_driver_version = 0
         loader_path = ""
         compute_queue_family = -1
 
@@ -444,6 +451,8 @@ class Doctor:
                         phys_device = best
                         device_name = best_props.deviceName.decode("utf-8", errors="replace").rstrip("\x00")
                         vendor_id = best_props.vendorID
+                        device_id = best_props.deviceID
+                        raw_driver_version = best_props.driverVersion
                         api_ver = best_props.apiVersion
                         api_str = f"{(api_ver >> 22) & 0x3FF}.{(api_ver >> 12) & 0x3FF}.{api_ver & 0xFFF}"
                         driver_version = f"drvVer=0x{best_props.driverVersion:08X} api={api_str}"
@@ -771,6 +780,10 @@ class Doctor:
             recommended_backend="vulkan" if full_success else ("vulkan_driver_only" if driver_probed else "cpu_neon"),
             stages=stages,
             profile_quirks=profile_quirks,
+            device_id=device_id,
+            api_version=api_ver,
+            driver_version_raw=raw_driver_version,
+            verification_source="native_c_hal",
         )
 
         if verbose:
@@ -826,26 +839,82 @@ class Doctor:
         return {}
 
     def save_state(self, report: DiagnosticReport) -> None:
-        """검증 결과를 원자적으로 state.json에 저장합니다."""
-        data = {
-            "overall_success": report.overall_success,
-            "device_name": report.device_name,
-            "driver_version": report.driver_version,
-            "loader_path": report.loader_path,
-            "vendor_id": report.vendor_id,
-            "passed_stages": report.passed_stages,
-            "total_stages": report.total_stages,
-            "recommended_backend": report.recommended_backend,
-            "profile_quirks": report.profile_quirks,
-            "timestamp": time.time(),
-        }
+        """검증 결과를 원자적으로 state.json에 저장합니다. 실패 시 기존 캐시 무효화 및 fsync 보장."""
+        if not report.overall_success:
+            if self.state_path.exists():
+                try:
+                    self.state_path.unlink()
+                except OSError:
+                    pass
+            data = {
+                "schemaVersion": 2,
+                "overallSuccess": False,
+                "verificationSource": "native_c_hal",
+                "verifiedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "validation": {
+                    "passedStages": report.passed_stages,
+                    "totalStages": report.total_stages,
+                },
+                "recommendedBackend": "cpu_neon",
+                "timestamp": time.time(),
+            }
+        else:
+            resolved_loader = ""
+            if report.loader_path:
+                try:
+                    resolved_loader = str(Path(report.loader_path).resolve())
+                except Exception:
+                    resolved_loader = str(report.loader_path)
+
+            data = {
+                "schemaVersion": 2,
+                "overallSuccess": True,
+                "verificationSource": "native_c_hal",
+                "verifiedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "deviceFingerprint": {
+                    "vendorId": report.vendor_id,
+                    "deviceId": getattr(report, "device_id", 0),
+                    "driverVersion": getattr(report, "driver_version_raw", 0) or report.driver_version,
+                    "apiVersion": getattr(report, "api_version", 0),
+                    "deviceName": report.device_name,
+                    "loaderPath": resolved_loader,
+                },
+                "validation": {
+                    "passedStages": report.passed_stages,
+                    "totalStages": report.total_stages,
+                },
+                "recommendedBackend": report.recommended_backend,
+                "profileQuirks": report.profile_quirks,
+                # 1개 버전 하위 호환 평탄화 필드
+                "vendorId": report.vendor_id,
+                "deviceId": getattr(report, "device_id", 0),
+                "driverVersion": getattr(report, "driver_version_raw", 0) or report.driver_version,
+                "apiVersion": getattr(report, "api_version", 0),
+                "deviceName": report.device_name,
+                "loaderPath": resolved_loader,
+                "passedStages": report.passed_stages,
+                "totalStages": report.total_stages,
+                "timestamp": time.time(),
+            }
+        tmp_path = self.state_path.with_name(f"{self.state_path.stem}_{os.getpid()}_{time.time_ns()}.tmp")
         try:
             self.state_path.parent.mkdir(parents=True, exist_ok=True)
-            tmp_path = self.state_path.with_name(f"{self.state_path.stem}_{os.getpid()}_{time.time_ns()}.tmp")
-            tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-            tmp_path.replace(self.state_path)
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())
+                except OSError:
+                    pass
+            os.replace(tmp_path, self.state_path)
         except OSError as e:
             logger.warning("[ameva-vulkan-runtime] state.json 원자적 저장 실패: %s", e)
+        finally:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
 
     def quick_probe(self) -> bool:
         """state.json 캐시 또는 진단을 통한 정직하고 안전한 Vulkan 가용성 확인."""

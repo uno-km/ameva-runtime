@@ -75,7 +75,6 @@ class DiffusionAdapter(BaseAdapter):
                 "is_adreno": is_adreno,
                 "needs_shim": is_mali or is_adreno,
                 "shim_path": DiffusionAdapter.resolve_shim_path(),
-                "coopmat_off": True,  # Adreno 830 NV coopmat2 bug avoidance
             })
 
             if engine is not None:

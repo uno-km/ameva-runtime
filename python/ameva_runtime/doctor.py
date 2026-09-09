@@ -188,7 +188,14 @@ class Doctor:
         return self.run_self_test(verbose=False)
 
     def quick_probe(self) -> bool:
-        return True
+        p = self.profile
+        if not p.has_vulkan_loader:
+            return False
+        if p.hardware_hazard:
+            return False
+        if p.gpu_family in ("Unknown", "None", ""):
+            return False
+        return p.recommended_backend == "vulkan"
 
 
 def diagnose(verbose: bool = False) -> DiagnosticReport:

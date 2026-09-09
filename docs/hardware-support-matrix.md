@@ -1,13 +1,13 @@
-﻿# 📊 Hardware Support Matrix & Empirical Benchmarks
+# 📊 Hardware Support Matrix & Empirical Benchmarks
 
 ## 1. Verified Device & GPU Matrix
 
-| 디바이스 | 모델명 | SoC | GPU 아키텍처 | 검증 단계 | 실기기 드라이버 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Galaxy S25** | `SM-S931N` | Snapdragon 8 Elite | Qualcomm Adreno 830 | **V11 검증 완료** | `vulkan.adreno.so v0800.64.7` (API 1.3) |
-| **Galaxy S21** | `SM-G991N` | Exynos 2100 | ARM Mali-G78 MP14 | **V11 검증 완료** | `/system/lib64/libvulkan.so` (API 1.1+) |
-| **Galaxy A35** | `SM-A356N` | Exynos 1380 | ARM Mali-G68 MP5 | **V11 검증 완료** | `/system/lib64/libvulkan.so` (API 1.1+) |
-| **Galaxy S24 (Exynos)** | `SM-S921N` | Exynos 2400 | Samsung Xclipse 940 | **호환성 Tier 1** | `/system/lib64/libvulkan.so` |
+| 디바이스 | 모델명 | SoC | GPU 아키텍처 | Doctor 검증 상태 | 모델 파이프라인 실측 | 실기기 드라이버 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Galaxy S25** | `SM-S931N` | Snapdragon 8 Elite | Qualcomm Adreno 830 | **Compute Certified (V0~V9)**<br>*(Model Certified: false)* | 별도 실기기 증적 완료 | `vulkan.adreno.so v0800.64.7` (API 1.4) |
+| **Galaxy S21** | `SM-G991N` | Exynos 2100 | ARM Mali-G78 MP14 | **Compute Certified (V0~V9)**<br>*(Model Certified: false)* | 별도 실기기 증적 완료 | `/system/lib64/libvulkan.so` (API 1.1+) |
+| **Galaxy A35** | `SM-A356N` | Exynos 1380 | ARM Mali-G68 MP5 | **Compute Certified (V0~V9)**<br>*(Model Certified: false)* | 별도 실기기 증적 완료 | `/system/lib64/libvulkan.so` (API 1.1+) |
+| **Galaxy S24 (Exynos)** | `SM-S921N` | Exynos 2400 | Samsung Xclipse 940 | **호환성 Tier 1** | 계획 단계 | `/system/lib64/libvulkan.so` |
 
 ---
 

@@ -137,7 +137,7 @@ NATIVE_ASSETS: Dict[str, AssetSpec] = {
         legacy_symlinks=[
             PREFIX / "share" / "ameva" / "shaders" / "matmul.spv",
         ],
-        description="ARM Mali / Qualcomm Adreno Hardware Workaround SPIR-V Shader",
+        description="AMEVA Universal Mobile High-Performance MatMul SPIR-V Kernel (matmul-tensor-compute.spv)",
     ),
 }
 

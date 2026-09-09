@@ -117,10 +117,6 @@ def _make_cpu_binding(
     )
 
 
-# Backward compatibility alias
-_make_cpu_fallback = _make_cpu_binding
-
-
 def _get_optimal_threads() -> int:
     """Returns optimal threads count for big/performance cores."""
     import os

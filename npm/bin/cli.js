@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 const { Doctor, createContext } = require('../index');
 
 async function main() {
@@ -20,15 +20,16 @@ async function main() {
     }
   } else if (cmd === 'benchmark') {
     console.log("\n============================================================");
-    console.log("  AMEVA-Vulkan-Runtime (Node.js): Multi-Modal Benchmark     ");
+    console.log("  AMEVA-Vulkan-Runtime (Node.js): Multi-Modal Execution Plan");
     console.log("============================================================");
     const ctx = await createContext({ device: "auto" });
-    console.log(`  Active Device: ${ctx.deviceName} (${ctx.backendType.toUpperCase()})`);
-    console.log("  • STT (Whisper)       -> BOUND (RTF 0.28)");
-    console.log("  • Diffusion (SDXS)    -> BOUND (VRAM 651MB)");
-    console.log("  • LLM (BitNet/GGUF)   -> BOUND (Ternary / GGUF Shaders)");
-    console.log("  • TTS (Piper)         -> BOUND (38.5 ms Latency)");
-    console.log("  • Vision (LLaVA/YOLO) -> BOUND (ViT Acceleration)");
+    console.log(`  Active Device   : ${ctx.deviceName}`);
+    console.log(`  Selected Backend: ${ctx.selectedBackend} (Reason: ${ctx.selectionReason})`);
+    console.log("  • STT (Whisper)       -> PLANNED (Status: NOT_EXECUTED)");
+    console.log("  • Diffusion (SDXS)    -> PLANNED (Status: NOT_EXECUTED)");
+    console.log("  • LLM (BitNet/GGUF)   -> PLANNED (Status: NOT_EXECUTED)");
+    console.log("  • TTS (Piper)         -> PLANNED (Status: NOT_EXECUTED)");
+    console.log("  • Vision (LLaVA/YOLO) -> PLANNED (Status: NOT_EXECUTED)");
     console.log("============================================================\n");
   } else {
     console.log("Usage: ameva-gpu [doctor|install|benchmark]");

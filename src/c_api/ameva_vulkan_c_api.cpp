@@ -29,6 +29,9 @@ int ameva_run_diagnostic(bool verbose, AmevaDiagnosticResult* out_result) {
     strncpy(out_result->recommended_backend, report.recommended_backend.c_str(), sizeof(out_result->recommended_backend) - 1);
     out_result->recommended_backend[sizeof(out_result->recommended_backend) - 1] = '\0';
 
+    out_result->compute_certified = report.compute_certified;
+    out_result->model_certified = report.model_certified;
+
     return report.overall_success ? 0 : 1;
 }
 

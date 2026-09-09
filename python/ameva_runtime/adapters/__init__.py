@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from .base import (
     _is_vulkan_report,
-    _make_cpu_fallback,
     _make_cpu_binding,
     check_vulkan_availability_or_raise,
     _ADRENO_VENDOR_ID,
@@ -44,7 +43,6 @@ __all__ = [
     "get_vulkan_env",
     "find_system_vulkan_driver_dir",
     "_is_vulkan_report",
-    "_make_cpu_fallback",
     "_make_cpu_binding",
     "check_vulkan_availability_or_raise",
 ]

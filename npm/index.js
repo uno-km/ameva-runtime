@@ -1,6 +1,12 @@
 const { Doctor } = require('./lib/doctor');
 const { VulkanContext, createContext, getOrCreateContext, PlatformNotSupportedError } = require('./lib/context');
 const {
+  SttExecutionPlan,
+  DiffusionExecutionPlan,
+  BitnetExecutionPlan,
+  LlamaCppExecutionPlan,
+  TtsExecutionPlan,
+  VisionExecutionPlan,
   SttAdapter,
   DiffusionAdapter,
   BitnetAdapter,
@@ -20,11 +26,18 @@ module.exports = {
   createContext,
   getOrCreateContext,
   PlatformNotSupportedError,
+  SttExecutionPlan,
+  DiffusionExecutionPlan,
+  BitnetExecutionPlan,
+  LlamaCppExecutionPlan,
+  TtsExecutionPlan,
+  VisionExecutionPlan,
   SttAdapter,
   DiffusionAdapter,
   BitnetAdapter,
   LlamaCppAdapter,
   TtsAdapter,
   VisionAdapter,
-  isAvailable
+  isAvailable,
+  nativeBridge: require('./lib/native_bridge')
 };

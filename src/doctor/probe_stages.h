@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -28,11 +28,15 @@ struct DiagnosticReport {
     std::string driver_version;
     std::string loader_path;
     uint32_t vendor_id;
+    uint32_t device_id;
+    uint32_t api_version;
     int passed_stages;
     int total_stages;
     double total_elapsed_ms;
     std::vector<StageReport> stages;
     std::string recommended_backend; // "vulkan" or "cpu_neon"
+    bool compute_certified;
+    bool model_certified;
 };
 
 /**

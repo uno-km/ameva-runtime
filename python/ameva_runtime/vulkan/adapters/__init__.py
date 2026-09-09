@@ -17,7 +17,6 @@ from ameva_runtime.adapters import (
     get_vulkan_env,
     find_system_vulkan_driver_dir,
     _is_vulkan_report,
-    _make_cpu_fallback,
     _make_cpu_binding,
     check_vulkan_availability_or_raise,
 )

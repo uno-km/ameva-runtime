@@ -1,85 +1,108 @@
 /**
- * 6-Modality Acceleration Adapters for Node.js
+ * 6-Modality Acceleration Execution Plans for Node.js
+ * Generates execution configurations and runtime flags (NOT a native ABI handle binder).
  */
-class SttAdapter {
-  static attach(engine, ctx) {
+class SttExecutionPlan {
+  static create(engine, ctx) {
     const isVk = Boolean(ctx && ctx.isVulkan());
     return {
       module: "termux-stt",
       backend: isVk ? "vulkan" : "cpu_neon",
       isVulkan: isVk,
-      rtfTarget: isVk ? 0.28 : 0.80,
-      status: isVk ? "BOUND" : "BOUND_CPU"
+      status: "PLANNED",
+      executionStatus: "NOT_EXECUTED"
     };
   }
 }
 
-class DiffusionAdapter {
-  static attach(engine, ctx) {
+class DiffusionExecutionPlan {
+  static create(engine, ctx) {
     const isVk = Boolean(ctx && ctx.isVulkan());
     return {
       module: "termux-diffusion",
       backend: isVk ? "vulkan" : "cpu_neon",
       isVulkan: isVk,
       unetTiling: isVk,
-      status: isVk ? "BOUND" : "BOUND_CPU"
+      status: "PLANNED",
+      executionStatus: "NOT_EXECUTED"
     };
   }
 }
 
-class BitnetAdapter {
-  static attach(engine, ctx) {
+class BitnetExecutionPlan {
+  static create(engine, ctx) {
     const isVk = Boolean(ctx && ctx.isVulkan());
     return {
       module: "termux-bitnet",
       backend: isVk ? "vulkan" : "cpu_neon",
       isVulkan: isVk,
       kernel: isVk ? "ggml_vk_mul_mat_i2_s" : "neon_dotprod",
-      status: isVk ? "BOUND" : "BOUND_CPU"
+      status: "PLANNED",
+      executionStatus: "NOT_EXECUTED"
     };
   }
 }
 
-class LlamaCppAdapter {
-  static attach(engine, ctx) {
+class LlamaCppExecutionPlan {
+  static create(engine, ctx) {
     const isVk = Boolean(ctx && ctx.isVulkan());
     return {
       module: "termux-llamacpp",
       backend: isVk ? "vulkan" : "cpu_neon",
       isVulkan: isVk,
       ngl: isVk ? 33 : 0,
-      status: isVk ? "BOUND" : "BOUND_CPU"
+      status: "PLANNED",
+      executionStatus: "NOT_EXECUTED"
     };
   }
 }
 
-class TtsAdapter {
-  static attach(engine, ctx) {
+class TtsExecutionPlan {
+  static create(engine, ctx) {
     const isVk = Boolean(ctx && ctx.isVulkan());
     return {
       module: "termux-tts",
       backend: isVk ? "vulkan" : "cpu_neon",
       isVulkan: isVk,
-      latencyMs: isVk ? 38.5 : 115.0,
-      status: isVk ? "BOUND" : "BOUND_CPU"
+      status: "PLANNED",
+      executionStatus: "NOT_EXECUTED"
     };
   }
 }
 
-class VisionAdapter {
-  static attach(engine, ctx) {
+class VisionExecutionPlan {
+  static create(engine, ctx) {
     const isVk = Boolean(ctx && ctx.isVulkan());
     return {
       module: "termux-vision",
       backend: isVk ? "vulkan" : "cpu_neon",
       isVulkan: isVk,
       vitAcceleration: isVk,
-      status: isVk ? "BOUND" : "BOUND_CPU"
+      status: "PLANNED",
+      executionStatus: "NOT_EXECUTED"
     };
   }
 }
 
+// Backward compatibility wrappers with deprecation warning notice
+const SttAdapter = SttExecutionPlan;
+const DiffusionAdapter = DiffusionExecutionPlan;
+const BitnetAdapter = BitnetExecutionPlan;
+const LlamaCppAdapter = LlamaCppExecutionPlan;
+const TtsAdapter = TtsExecutionPlan;
+const VisionAdapter = VisionExecutionPlan;
+
+for (const Cls of [SttExecutionPlan, DiffusionExecutionPlan, BitnetExecutionPlan, LlamaCppExecutionPlan, TtsExecutionPlan, VisionExecutionPlan]) {
+  Cls.attach = Cls.create;
+}
+
 module.exports = {
+  SttExecutionPlan,
+  DiffusionExecutionPlan,
+  BitnetExecutionPlan,
+  LlamaCppExecutionPlan,
+  TtsExecutionPlan,
+  VisionExecutionPlan,
   SttAdapter,
   DiffusionAdapter,
   BitnetAdapter,

@@ -2,14 +2,8 @@
  * AMEVA Vulkan Hardware Context for Node.js
  */
 const { Doctor } = require('./doctor');
+const { PlatformNotSupportedError } = require('./errors');
 const os = require('os');
-
-class PlatformNotSupportedError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "PlatformNotSupportedError";
-  }
-}
 
 class VulkanContext {
   constructor(options = {}) {
@@ -22,6 +16,8 @@ class VulkanContext {
     this.vulkanVersion = "1.3.284";
     this.isActive = false;
     this.executionFlags = {};
+    this.selectedBackend = "cpu_neon";
+    this.selectionReason = "uninitialized";
 
     this._initialize();
   }
@@ -36,11 +32,15 @@ class VulkanContext {
         );
       }
       this.backendType = "vulkan";
-      this.deviceName = "Qualcomm Adreno / ARM Mali Vulkan GPU";
+      this.selectedBackend = "vulkan";
+      this.selectionReason = "explicit_gpu_request_verified";
+      this.deviceName = this.doctor.quickProbeDevice() || "Qualcomm Adreno / ARM Mali Vulkan GPU";
       this.executionFlags = { useGpu: true, gpuLayers: 99, backend: "vulkan" };
       this.isActive = true;
     } else if (this.deviceMode === "cpu") {
       this.backendType = "cpu_neon";
+      this.selectedBackend = "cpu_neon";
+      this.selectionReason = "explicit_cpu_request";
       this.deviceName = "ARM64 NEON Vector CPU Engine";
       this.executionFlags = { useGpu: false, threads: (os.cpus() || []).length || 4, backend: "cpu_neon" };
       this.isActive = true;
@@ -48,11 +48,15 @@ class VulkanContext {
       const isSupported = this.doctor.quickProbe();
       if (isSupported) {
         this.backendType = "vulkan";
-        this.deviceName = "Qualcomm Adreno / ARM Mali Vulkan GPU";
+        this.selectedBackend = "vulkan";
+        this.selectionReason = "vulkan_certified_hardware";
+        this.deviceName = this.doctor.quickProbeDevice() || "Qualcomm Adreno / ARM Mali Vulkan GPU";
         this.executionFlags = { useGpu: true, gpuLayers: 99, backend: "vulkan" };
       } else {
         this.backendType = "cpu_neon";
-        this.deviceName = "ARM64 NEON Vector CPU Engine (Auto-Recovered)";
+        this.selectedBackend = "cpu_neon";
+        this.selectionReason = "vulkan_probe_unverified";
+        this.deviceName = "ARM64 NEON Vector CPU Engine (Auto-Routed)";
         this.executionFlags = { useGpu: false, threads: (os.cpus() || []).length || 4, backend: "cpu_neon" };
       }
       this.isActive = true;
@@ -104,13 +108,25 @@ class VulkanContext {
     return { ...this.executionFlags };
   }
 
-  allocateBuffer(sizeBytes) {
+  validateBufferBudget(sizeBytes) {
     if (sizeBytes > this.memoryLimitMb * 1024 * 1024) {
       throw new Error(
         `Requested buffer size (${(sizeBytes / (1024*1024)).toFixed(2)} MB) exceeds configured memory limit (${this.memoryLimitMb} MB).`
       );
     }
     return sizeBytes;
+  }
+
+  allocateBuffer(sizeBytes) {
+    process.emitWarning(
+      "allocateBuffer() does not allocate native memory and is deprecated. " +
+      "Use validateBufferBudget(). This alias will be removed in v3.0.0.",
+      {
+        code: "AMEVA_DEPRECATED_FAKE_ALLOCATION",
+        type: "DeprecationWarning"
+      }
+    );
+    return this.validateBufferBudget(sizeBytes);
   }
 
   close() {

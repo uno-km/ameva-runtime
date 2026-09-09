@@ -113,5 +113,97 @@ class TestDoctorV0V11(unittest.TestCase):
         self.assertTrue(self.doc.quick_probe())
 
 
+class TestDoctorStateProducer(unittest.TestCase):
+    """실제 Native C HAL 의 state.json 원자적 생성, Fingerprint 완비, 실패 시 무효화 검증."""
+
+    def setUp(self):
+        self.test_dir = Path(__file__).parent.parent.parent / "test_scratch_producer"
+        self.test_dir.mkdir(parents=True, exist_ok=True)
+        self.state_file = self.test_dir / "vulkan_state.json"
+        self.doc = Doctor(str(self.state_file))
+
+    def tearDown(self):
+        import shutil
+        if self.test_dir.exists():
+            try:
+                shutil.rmtree(self.test_dir)
+            except OSError:
+                pass
+
+    def test_save_state_production_schema_and_fingerprint(self):
+        """성공 진단 시 schemaVersion=2, verificationSource=native_c_hal 및 fingerprint 완비 검증."""
+        import json
+        mock_report = DiagnosticReport(
+            overall_success=True,
+            device_name="Qualcomm Adreno (TM) 830",
+            driver_version="drvVer=0x80350000 api=1.3.284",
+            loader_path="/system/lib64/libvulkan.so",
+            vendor_id=0x5143,
+            passed_stages=10,
+            total_stages=10,
+            total_elapsed_ms=12.5,
+            recommended_backend="vulkan",
+            device_id=0x06050000,
+            api_version=0x00403000,
+            driver_version_raw=0x80350000,
+            verification_source="native_c_hal",
+        )
+        self.doc.save_state(mock_report)
+        self.assertTrue(self.state_file.is_file(), "state.json 이 원자적으로 생성되어야 함")
+
+        data = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertEqual(data["schemaVersion"], 2)
+        self.assertEqual(data["verificationSource"], "native_c_hal")
+        self.assertEqual(data["vendorId"], 0x5143)
+        self.assertEqual(data["deviceId"], 0x06050000)
+        self.assertEqual(data["overallSuccess"], True)
+        self.assertIn("verifiedAt", data)
+        self.assertIn("deviceFingerprint", data)
+        self.assertEqual(data["deviceFingerprint"]["vendorId"], 0x5143)
+        self.assertEqual(data["deviceFingerprint"]["deviceId"], 0x06050000)
+        self.assertIn("validation", data)
+        self.assertEqual(data["validation"]["passedStages"], 10)
+
+    def test_save_state_invalidates_previous_success_on_failure(self):
+        """실패 시 기존 성공 state를 즉각 무효화(overallSuccess=False)함을 검증."""
+        import json
+        # 1. 이전 성공 state 생성
+        success_report = DiagnosticReport(
+            overall_success=True,
+            device_name="Qualcomm Adreno (TM) 830",
+            driver_version="drvVer=0x80350000 api=1.3.284",
+            loader_path="/system/lib64/libvulkan.so",
+            vendor_id=0x5143,
+            passed_stages=10,
+            total_stages=10,
+            total_elapsed_ms=12.5,
+            recommended_backend="vulkan",
+            device_id=0x06050000,
+            api_version=0x00403000,
+            verification_source="native_c_hal",
+        )
+        self.doc.save_state(success_report)
+        self.assertTrue(self.state_file.is_file())
+        data_before = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertTrue(data_before["overallSuccess"])
+
+        # 2. 실패 진단 발생 시 save_state 호출
+        fail_report = DiagnosticReport(
+            overall_success=False,
+            device_name="Unknown",
+            driver_version="Unknown",
+            loader_path="",
+            vendor_id=0,
+            passed_stages=0,
+            total_stages=12,
+            total_elapsed_ms=0.5,
+            recommended_backend="cpu_neon",
+        )
+        self.doc.save_state(fail_report)
+        data_after = json.loads(self.state_file.read_text(encoding="utf-8"))
+        self.assertFalse(data_after["overallSuccess"], "실패 진단 후에는 overallSuccess가 False로 무효화되어야 함")
+        self.assertEqual(data_after["recommendedBackend"], "cpu_neon")
+
+
 if __name__ == "__main__":
     unittest.main()

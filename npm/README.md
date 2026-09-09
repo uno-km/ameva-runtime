@@ -11,15 +11,43 @@
 npm install @ameva/runtime
 ```
 
-## Quickstart
+## Quickstart & Recommended Invocation Workflow
 
 ```typescript
-import { Doctor, createContext } from '@ameva/runtime';
+import { Doctor, createContext, isAvailable } from '@ameva/runtime';
 
-const doc = new Doctor();
-const report = await doc.runSelfTest();
-console.log(`Vulkan GPU: ${report.deviceName}`);
+// 1. First run or periodic validation: Execute real GPU diagnostic & issue certificate
+const doctor = new Doctor();
+const report = await doctor.runSelfTest(false);
+console.log(`GPU: ${report.deviceName} | Compute Certified: ${report.computeCertified}`);
+
+// 2. Synchronous context creation: Consumes the validated 24h native certificate
+const ctx = createContext({ device: "auto" });
+console.log(`Selected Backend: ${ctx.selectedBackend}`); // "vulkan" on certified hardware
 ```
+
+## Architecture & Certification Contracts
+
+AMEVA-Runtime enforces a strict separation between active hardware probing and synchronous state consumption:
+
+### 1. Active Probing (`Doctor.runSelfTest()`)
+- Directly dispatches into `ameva_native.node` via N-API and executes official Vulkan C ABI diagnostics (V0 through V9).
+- Generates and signs `vulkan_state.json` with SHA-256 protected hardware fingerprint metadata (`vendorId`, `deviceId`, `apiVersion`, `driverVersion`, `loaderPath`) and ISO-8601 UTC timestamp (`verifiedAt`).
+
+### 2. State Consumption (`isAvailable()`, `createContext()`)
+- `createContext()` does **not** execute heavy GPU diagnostics on each synchronous instantiation.
+- Instead, `createContext({ device: "auto" })` and `isAvailable()` evaluate the cached `vulkan_state.json`:
+  - Enforces 24-hour TTL (`verifiedAt`).
+  - Enforces origin verification (`verificationSource === "native_c_hal"`).
+  - Enforces `computeCertified === true` and `diagnosticScope === "compute"`.
+  - Performs **Certificate Metadata Validation** against the local driver loader path and canonical schema.
+- Note: `quickProbe()` trusts the verified cryptographic state signed by Native HAL; it does **not** perform real-time GPU hardware re-querying during synchronous context instantiation.
+
+### 3. Certification Status Separation
+- **Doctor Compute Certified**: Strictly evaluates to `true` when stages V0 (Loader Open) through V9 (Result Checksum Validation) all individually PASS.
+- **Doctor Model Certified**: Strictly evaluates to `false` in current releases, as high-level model runtime graphs (V10–V11) are deferred to dedicated engines.
+- **Modality Engine Benchmarks**: Real-device performance figures (LLaMA-3.2, SDXS, Whisper) are empirical measurements from separate model runtime executions, decoupled from Doctor V11 PASS status.
+- **CPU Reference GEMM**: `matmulF32` is a native host C reference implementation (`backend: "cpu_reference"`, `vulkanDispatch: "NOT_PERFORMED"`).
 
 ## Documentation
 - [Official Documentation](https://uno-km.vercel.app/lib/vulkan/)
