@@ -63,10 +63,12 @@ class Doctor {
   async runSelfTest(verbose = true) {
     if (!nativeBridge.isNativeLoaded()) {
       const info = nativeBridge.getNativeAddonInfo();
-      throw new PlatformNotSupportedError(
+      const err = new PlatformNotSupportedError(
         `Native Ameva C ABI addon is not available for ${process.platform}-${process.arch}. ` +
         `Hardware diagnostic requires verified native driver bindings. (${info.errorMessage || info.errorCode})`
       );
+      err.code = info.errorCode || "NATIVE_ADDON_UNAVAILABLE";
+      throw err;
     }
 
     // Delegate directly to Native C ABI Doctor

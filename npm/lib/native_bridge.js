@@ -11,47 +11,88 @@ let addonInfo = {
   errorMessage: `No native addon is available for ${process.platform}-${process.arch}.`
 };
 
-// 1. Packaged prebuilds take first priority
-const candidates = [
-  { source: 'prebuilt', path: path.resolve(__dirname, '../prebuilds', `${process.platform}-${process.arch}`, 'ameva_native.node') },
-  { source: 'build_release', path: path.resolve(__dirname, '../build/Release/ameva_native.node') },
-  { source: 'dev_build_release', path: path.resolve(__dirname, '../../build/Release/ameva_native.node') },
-  { source: 'dev_build_debug', path: path.resolve(__dirname, '../../build/Debug/ameva_native.node') },
-  { source: 'local', path: path.resolve(__dirname, './ameva_native.node') }
-];
-
-// 2. Strict opt-in environment override validation (requires AMEVA_ALLOW_NATIVE_OVERRIDE=1)
-if (process.env.AMEVA_ALLOW_NATIVE_OVERRIDE === '1' && process.env.AMEVA_NATIVE_PATH) {
-  const envPath = process.env.AMEVA_NATIVE_PATH;
-  if (
-    typeof envPath === 'string' &&
-    !envPath.includes('\0') &&
-    path.isAbsolute(envPath) &&
-    envPath.endsWith('.node')
-  ) {
-    try {
-      if (fs.existsSync(envPath) && fs.statSync(envPath).isFile()) {
-        candidates.unshift({ source: 'environment_override', path: envPath });
-      }
-    } catch (_) {}
+function checkTermuxEnvironment() {
+  if (process.platform !== 'android' || process.arch !== 'arm64') {
+    return { isTermux: false, compatible: true };
   }
+  const termuxPrefix = process.env.PREFIX || '/data/data/com.termux/files/usr';
+  const isTermuxPath = typeof termuxPrefix === 'string' && termuxPrefix.includes('com.termux');
+  const libcppPath = path.join(termuxPrefix, 'lib', 'libc++_shared.so');
+  let hasLibCpp = false;
+  try {
+    hasLibCpp = fs.existsSync(libcppPath);
+  } catch (_) {
+    hasLibCpp = false;
+  }
+  if (!isTermuxPath || !hasLibCpp) {
+    return {
+      isTermux: false,
+      compatible: false,
+      errorCode: 'TERMUX_RUNTIME_DEPENDENCY_MISSING',
+      errorMessage: `Official Termux runtime dependency missing: $PREFIX/lib/libc++_shared.so was not found at '${libcppPath}'. ` +
+        `This prebuild is strictly targeted for Official Termux on Android arm64 and is not compatible with generic Android or non-Termux environments.`
+    };
+  }
+  return { isTermux: true, compatible: true, prefix: termuxPrefix, libcppPath };
 }
 
-for (const candidate of candidates) {
-  if (candidate.path && fs.existsSync(candidate.path)) {
-    try {
-      nativeModule = require(candidate.path);
-      addonInfo = {
-        loaded: true,
-        source: candidate.source,
-        platform: process.platform,
-        arch: process.arch,
-        path: candidate.path
-      };
-      loadError = null;
-      break;
-    } catch (err) {
-      loadError = err;
+const termuxCheck = checkTermuxEnvironment();
+if (process.platform === 'android' && process.arch === 'arm64' && !termuxCheck.compatible) {
+  addonInfo = {
+    loaded: false,
+    addonPath: null,
+    errorCode: termuxCheck.errorCode,
+    errorMessage: termuxCheck.errorMessage
+  };
+  loadError = new Error(termuxCheck.errorMessage);
+  loadError.code = termuxCheck.errorCode;
+} else {
+  // 1. Packaged prebuilds take first priority
+  const candidates = [
+    { source: 'prebuilt', path: path.resolve(__dirname, '../prebuilds', `${process.platform}-${process.arch}`, 'ameva_native.node') },
+    { source: 'build_release', path: path.resolve(__dirname, '../build/Release/ameva_native.node') },
+    { source: 'dev_build_release', path: path.resolve(__dirname, '../../build/Release/ameva_native.node') },
+    { source: 'dev_build_debug', path: path.resolve(__dirname, '../../build/Debug/ameva_native.node') },
+    { source: 'local', path: path.resolve(__dirname, './ameva_native.node') }
+  ];
+
+  // 2. Strict opt-in environment override validation (requires AMEVA_ALLOW_NATIVE_OVERRIDE=1)
+  if (process.env.AMEVA_ALLOW_NATIVE_OVERRIDE === '1' && process.env.AMEVA_NATIVE_PATH) {
+    const envPath = process.env.AMEVA_NATIVE_PATH;
+    if (
+      typeof envPath === 'string' &&
+      !envPath.includes('\0') &&
+      path.isAbsolute(envPath) &&
+      envPath.endsWith('.node')
+    ) {
+      try {
+        if (fs.existsSync(envPath) && fs.statSync(envPath).isFile()) {
+          candidates.unshift({ source: 'environment_override', path: envPath });
+        }
+      } catch (_) {}
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (candidate.path && fs.existsSync(candidate.path)) {
+      try {
+        nativeModule = require(candidate.path);
+        addonInfo = {
+          loaded: true,
+          source: candidate.source,
+          platform: process.platform,
+          arch: process.arch,
+          path: candidate.path,
+          termuxRuntime: termuxCheck.isTermux ? {
+            prefix: termuxCheck.prefix,
+            libcxx: termuxCheck.libcppPath
+          } : undefined
+        };
+        loadError = null;
+        break;
+      } catch (err) {
+        loadError = err;
+      }
     }
   }
 }
@@ -59,11 +100,12 @@ for (const candidate of candidates) {
 function ensureNative() {
   if (!nativeModule) {
     const detail = loadError ? ` (Cause: ${loadError.message})` : '';
+    const code = addonInfo.errorCode || "NATIVE_ADDON_UNAVAILABLE";
     const err = new PlatformNotSupportedError(
       `Native Ameva C ABI addon (ameva_native.node) is not loaded or not available for ${process.platform}-${process.arch}${detail}. ` +
       `Zero-silent-fallback policy strictly enforced: prebuilt binary or manual build via 'node-gyp rebuild' is required.`
     );
-    err.code = "NATIVE_ADDON_UNAVAILABLE";
+    err.code = code;
     throw err;
   }
   return nativeModule;

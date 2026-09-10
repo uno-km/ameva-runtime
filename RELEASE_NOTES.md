@@ -23,8 +23,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - Two-phase lifecycle termination: `SIGTERM` followed by grace period escalation to `SIGKILL` on POSIX.
   - Dedicated Structured Telemetry channel on FD 3 (`AMEVA_TELEMETRY_FD=3`) with conflict detection locking (`telemetry_conflict`).
 - **Packaged Native Addon & Host Runtime Dependency**:
-  - Included prebuilt native C ABI addon for `android-arm64` (`prebuilds/android-arm64/ameva_native.node`) verified on Snapdragon 8 Elite / Adreno 830.
-  - **Runtime Dependency Notice**: Dynamically links against Termux `$PREFIX/lib/libc++_shared.so` and requires the standard Termux environment layout (not a standalone Bionic-only binary).
+  - Included prebuilt native C ABI addon strictly targeted for `Official Termux on Android arm64` (`prebuilds/android-arm64/ameva_native.node`) verified on Snapdragon 8 Elite / Adreno 830.
+  - **Runtime Dependency Notice**: Dynamically links against Termux `$PREFIX/lib/libc++_shared.so` and requires the standard Termux environment layout (`/data/data/com.termux/files/usr`). Not compatible with generic Android embedding, other terminal applications, other package IDs, or custom Node runtimes.
+  - Runtime loader gate: enforces `TERMUX_RUNTIME_DEPENDENCY_MISSING` fail-fast if `$PREFIX/lib/libc++_shared.so` is missing.
   - Strict non-blocking package import: `require('@ameva/runtime')` succeeds on all platforms.
   - Zero-silent-fallback fail-fast policy: on platforms without native addon support (e.g. Windows x64), native GPU calls and `Doctor.runSelfTest()` strictly reject with `PlatformNotSupportedError`, while pure JavaScript APIs and the Subprocess Engine remain fully operational.
   - Hardened native addon diagnostic inspection API: `nativeBridge.getNativeAddonInfo()`. Environment override requires explicit opt-in (`AMEVA_ALLOW_NATIVE_OVERRIDE=1`).

@@ -12,7 +12,9 @@
     "prebuilds",
     "README.md",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
+    "source-provenance.json"
   ],
   "bin": {
     "ameva": "bin/cli.js",

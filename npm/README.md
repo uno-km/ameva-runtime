@@ -36,8 +36,16 @@ console.log(`Selected Backend: ${ctx.selectedBackend}`); // "vulkan" on certifie
 | **Other Android distros** | Any | Any | :question: Untested | :question: Untested | Not yet verified |
 
 > [!IMPORTANT]
+> **Native Target Platform Support**:
+> - **Native target**: `Official Termux on Android arm64`
+> - **Not supported by this prebuild**:
+>   - Generic Android embedding
+>   - Other terminal applications
+>   - Other Android package IDs
+>   - Android apps loading Node through a custom runtime
+>
 > **Native Addon Host Environment Dependency**:
-> The prebuilt native addon (`prebuilds/android-arm64/ameva_native.node`) is compiled for Termux and dynamically resolves `libc++_shared.so` from Termux `$PREFIX/lib`. It is not a completely standalone binary and requires the official Termux runtime environment with standard path layout.
+> The prebuilt native addon (`prebuilds/android-arm64/ameva_native.node`) is compiled specifically for the official Termux environment and dynamically resolves `libc++_shared.so` from Termux `$PREFIX/lib`. It is not a standalone binary and strictly requires the official Termux runtime environment with standard `/data/data/com.termux/files/usr` path layout.
 >
 > **CPU Context Notice**:
 > `createContext({ device: "cpu" })` produces routing metadata and execution flags for downstream AI adapters; it is not a standalone native CPU compute kernel on desktop hosts. On non-ARM64 platforms (e.g. Windows x64), it initializes `selectedBackend: "cpu_reference"`.
