@@ -129,6 +129,16 @@ console.log(`Vulkan GPU: ${report.deviceName}`);
 
 ---
 
+## Known Limitations & Platform Specifics
+
+### Termux Subprocess Invocation (`process.execPath` & linker64 Contract)
+- In the official Termux environment on Android, when `LD_PRELOAD` is not set, `process.execPath` resolves directly to the Android dynamic linker (`/apex/com.android.runtime/bin/linker64`).
+- When invoking child Node.js processes via `executeSubprocess` on Termux without `LD_PRELOAD`, pass `process.execPath` as the executable with `/data/data/com.termux/files/usr/bin/node` as the first argument in `args`.
+- This directly invokes the Android `linker64` launcher without invoking an intermediate command shell (`shell: false`).
+- An ergonomic resolution helper (`resolveNodeSubprocessInvocation()`) will be introduced in a future release.
+
+---
+
 ## Official Documentation & Benchmarks
 - [Official Architecture & API Reference](https://uno-km.vercel.app/lib/vulkan/)
 - [Ecosystem Metrics & Registry Stats](https://uno-km.vercel.app/foundation/metrics)

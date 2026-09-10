@@ -44,6 +44,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Single-shot execution only; persistent resident worker daemon is deferred to Phase N3.
 - `modelCertified` status is strictly `false` (V10/V11 model graph execution is deferred to dedicated modality engines).
 - Memory trend in uncollected 1,000 rapid invocations is classified as `INCONCLUSIVE` (allocator heap retention vs external buffer delta 0.00MB).
+- **Termux `process.execPath` & linker64**: On this Termux Node.js build without `LD_PRELOAD`, `process.execPath` resolves to the Android dynamic linker (`/apex/com.android.runtime/bin/linker64`). Child Node.js invocations must pass the absolute Termux Node binary (`/data/data/com.termux/files/usr/bin/node`) as the first argument in `args`. An ergonomic resolution helper (`resolveNodeSubprocessInvocation()`) will be introduced in post-alpha.
 
 ---
 
