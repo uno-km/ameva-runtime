@@ -1,0 +1,12 @@
+﻿{
+  "schemaVersion": 1,
+  "platform": "android",
+  "arch": "arm64",
+  "artifact": "ameva_native.node",
+  "sha256": "cf3af0e66f92910fc1a4490137416def00bc69a90c8dd5c03e237d6f37c7ec88",
+  "nodeApiVersion": 8,
+  "testedNodeVersion": "26.3.1",
+  "testedEnvironment": "Android 15 Termux",
+  "device": "Galaxy S25",
+  "buildSourceCommit": "a37afb6babc498532ffa369b5067d1547d965161"
+}

@@ -1,4 +1,4 @@
-﻿const assert = require('assert');
+const assert = require('assert');
 const { Doctor, isAvailable, createContext, PlatformNotSupportedError } = require('./index');
 const nativeBridge = require('./lib/native_bridge');
 
@@ -14,10 +14,10 @@ async function runPublicApiTestSuite() {
   // 1. Doctor.runSelfTest() invokes Native Doctor when addon is loaded
   console.log('  -> Executing new Doctor().runSelfTest(false)...');
   const doc = new Doctor();
-  const report = await doc.runSelfTest(false);
 
-  assert(report !== null && typeof report === 'object');
   if (nativeBridge.isNativeLoaded()) {
+    const report = await doc.runSelfTest(false);
+    assert(report !== null && typeof report === 'object');
     assert.strictEqual(report.verificationSource, 'native_c_hal', 'Expected native_c_hal verificationSource');
     assert.strictEqual(report.computeCertified, true, 'Expected computeCertified to be true');
     assert.strictEqual(report.modelCertified, false, 'Expected modelCertified to be false (V10/V11 deferred)');
@@ -26,9 +26,12 @@ async function runPublicApiTestSuite() {
     assert.strictEqual(report.recommendedBackend, 'vulkan', `Expected recommendedBackend 'vulkan', got: ${report.recommendedBackend}`);
     recordPass(`Doctor.runSelfTest() delegated to Native Doctor: device='${report.deviceName}', computeCertified=${report.computeCertified}`);
   } else {
-    assert.strictEqual(report.verificationSource, 'pure_js_probe', 'Expected pure_js_probe fallback');
-    assert.strictEqual(report.overallSuccess, false, 'Pure JS cannot certify compute');
-    recordPass('Doctor.runSelfTest() correctly executed pure_js_probe fallback when unbuilt');
+    await assert.rejects(
+      async () => await doc.runSelfTest(false),
+      (err) => err instanceof PlatformNotSupportedError || err.name === 'PlatformNotSupportedError',
+      'Expected PlatformNotSupportedError when native addon is unavailable'
+    );
+    recordPass('Doctor.runSelfTest() strictly rejected with PlatformNotSupportedError when native addon is unbuilt');
   }
 
   // 2. Doctor.quickProbe() and quickProbeDevice()

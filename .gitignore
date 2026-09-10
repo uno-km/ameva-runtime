@@ -32,6 +32,7 @@ htmlcov/
 node_modules/
 package-lock.json
 *.tgz
+release/
 
 # C/C++ Build
 CMakeCache.txt

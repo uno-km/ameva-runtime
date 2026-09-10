@@ -3,6 +3,39 @@
 All notable changes and milestones for `ameva-runtime` will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and Apache-2.0 governance.
 
+## [v0.2.0-alpha.1] - 2026-09-10
+### Controlled Subprocess Execution Engine & Standalone Public Alpha Release
+
+#### Highlights
+- **Controlled Subprocess Execution Engine (Phase N2)**:
+  - Hardened single-shot execution layer designed for on-device AI inference (`executeSubprocess`, `validateExecutable`, `toSubprocessOptions`).
+  - Strict security invariants: `shell: false`, absolute executable paths, argv array invocation, environment allowlisting & injection attack prevention (`BLOCKED_ENV_KEYS`).
+  - Independent stream bounds (`maxStdoutBytes`, `maxStderrBytes`, `maxTelemetryBytes`). Exceeding bounds triggers `OUTPUT_LIMIT_EXCEEDED` with multi-stage termination.
+  - First-Cause-Wins deterministic termination model across timeouts, abort signals, and limit violations.
+  - Two-phase lifecycle termination: `SIGTERM` followed by grace period escalation to `SIGKILL` on POSIX.
+  - Dedicated Structured Telemetry channel on FD 3 (`AMEVA_TELEMETRY_FD=3`) with conflict detection locking (`telemetry_conflict`).
+- **Packaged Native Addon & Non-Blocking Architecture**:
+  - Included prebuilt native C ABI addon for `android-arm64` (`prebuilds/android-arm64/ameva_native.node`) verified on Snapdragon 8 Elite / Adreno 830.
+  - Strict non-blocking package import: `require('@ameva/runtime')` succeeds on all platforms.
+  - Zero-silent-fallback fail-fast policy: on platforms without native addon support (e.g. Windows x64), native GPU calls and `Doctor.runSelfTest()` strictly reject with `PlatformNotSupportedError`, while pure JavaScript APIs and the Subprocess Engine remain fully operational.
+  - Added native addon diagnostic inspection API: `nativeBridge.getNativeAddonInfo()`.
+- **Empirical Real-Device Validation (Samsung Galaxy S25 / Snapdragon 8 Elite / Adreno 830)**:
+  - Verified inside clean isolated `node_modules` environment (`s25-release-smoke`).
+  - 10-Gate Packaged Smoke Verification: 10/10 PASS.
+  - Native Doctor hardware probe: Stages V0-V9 PASS (10/12 stages, `computeCertified: true`, `recommendedBackend: "vulkan"`).
+  - 13-Gate Subprocess Lifecycle Suite: 62/62 assertions PASS (including SIGTERM -> SIGKILL escalation and 1,000-run cycle completion).
+- **Compliance & Artifact Integrity**:
+  - Full Apache-2.0 license text and `NOTICE` third-party attributions.
+  - Added prebuild manifest (`manifest.json`) recording artifact SHA-256, Node-API level 8, and verified device details.
+  - Generated external release manifest: `release/SHA256SUMS` (`36c3c8887f54c175b50b354571d65b4bbea507d18e761497fa4c8b21dc6fbdd5`).
+
+#### Known Limitations
+- Single-shot execution only; persistent resident worker daemon is deferred to Phase N3.
+- `modelCertified` status is strictly `false` (V10/V11 model graph execution is deferred to dedicated modality engines).
+- Memory trend in uncollected 1,000 rapid invocations is classified as `INCONCLUSIVE` (allocator heap retention vs external buffer delta 0.00MB).
+
+---
+
 ## [v2.5.0] - 2026-09-07
 ### Native BitNet 1.58-bit Vulkan Compute Acceleration, Permanent VRAM Residency & Zero-Copy Pipeline
 

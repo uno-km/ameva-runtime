@@ -38,6 +38,7 @@ function findVulkanLib() {
   return null;
 }
 
+const { PlatformNotSupportedError } = require('./errors');
 const nativeBridge = require('./native_bridge');
 
 class Doctor {
@@ -60,131 +61,36 @@ class Doctor {
   }
 
   async runSelfTest(verbose = true) {
-    // 1. If Native Addon is loaded, delegate directly to Native C ABI Doctor
-    if (nativeBridge.isNativeLoaded()) {
-      const diag = await nativeBridge.runDiagnostic({ verbose });
-      const report = {
-        schemaVersion: 2,
-        overallSuccess: Boolean(diag.overallSuccess),
-        diagnosticScope: diag.diagnosticScope || "compute",
-        scopeSuccess: diag.scopeSuccess !== undefined ? Boolean(diag.scopeSuccess) : Boolean(diag.overallSuccess),
-        computeCertified: Boolean(diag.computeCertified),
-        modelCertified: Boolean(diag.modelCertified),
-        capabilityStatus: diag.computeCertified ? "COMPUTE_CERTIFIED" : "COMPUTE_UNVERIFIED",
-        verificationSource: "native_c_hal",
-        verifiedAt: new Date().toISOString(),
-        deviceName: diag.deviceName || "Unknown",
-        driverVersion: diag.driverVersion || "Unknown",
-        loaderPath: diag.loaderPath || "Unknown",
-        passedStages: diag.passedStages,
-        totalStages: diag.totalStages,
-        totalElapsedMs: diag.totalElapsedMs,
-        recommendedBackend: diag.recommendedBackend,
-        exitCode: diag.exitCode,
-        stages: []
-      };
-      return report;
+    if (!nativeBridge.isNativeLoaded()) {
+      const info = nativeBridge.getNativeAddonInfo();
+      throw new PlatformNotSupportedError(
+        `Native Ameva C ABI addon is not available for ${process.platform}-${process.arch}. ` +
+        `Hardware diagnostic requires verified native driver bindings. (${info.errorMessage || info.errorCode})`
+      );
     }
 
-    // 2. Pure JS Probe when native addon is unavailable
-    const t0 = performance.now();
-    if (verbose) {
-      console.log("\n============================================================");
-      console.log("  AMEVA-Vulkan-Runtime (Node.js): 12-Stage Diagnostic Suite ");
-      console.log("============================================================");
-    }
-
-    const stages = [];
-    let passed = 0;
-    let overallSuccess = false;
-    let deviceName = "Unknown";
-    let loaderPath = findVulkanLib();
-
-    if (loaderPath) {
-      stages.push({
-        stageId: 0,
-        stageName: `V0: ${this.stageNames[0]}`,
-        result: "PASS",
-        elapsedMs: 0.5,
-        detailMessage: `Bound to: ${loaderPath}`
-      });
-      passed++;
-      deviceName = "Android Vulkan ICD Driver Detected";
-
-      // V1~V6: Probe native execution status honestly
-      for (let i = 1; i <= 6; i++) {
-        stages.push({
-          stageId: i,
-          stageName: `V${i}: ${this.stageNames[i]}`,
-          result: "SKIP",
-          elapsedMs: 0.0,
-          detailMessage: "Native C HAL FFI (libameva_vulkan.so) binding required for hardware dispatch"
-        });
-      }
-
-      for (let i = 7; i < 12; i++) {
-        stages.push({
-          stageId: i,
-          stageName: `V${i}: ${this.stageNames[i]}`,
-          result: "SKIP",
-          elapsedMs: 0.0,
-          detailMessage: "End-to-end shader verification unverified in standalone JS runtime"
-        });
-      }
-      overallSuccess = false; // Pure JS without C FFI cannot certify Vulkan compute
-    } else {
-      stages.push({
-        stageId: 0,
-        stageName: `V0: ${this.stageNames[0]}`,
-        result: "FAIL",
-        elapsedMs: 0.2,
-        detailMessage: "No Vulkan ICD library found on system"
-      });
-      for (let i = 1; i < 12; i++) {
-        stages.push({
-          stageId: i,
-          stageName: `V${i}: ${this.stageNames[i]}`,
-          result: "SKIP",
-          elapsedMs: 0.0,
-          detailMessage: "Skipped due to V0 failure"
-        });
-      }
-      overallSuccess = false;
-    }
-
-    const totalElapsed = performance.now() - t0;
+    // Delegate directly to Native C ABI Doctor
+    const diag = await nativeBridge.runDiagnostic({ verbose });
     const report = {
       schemaVersion: 2,
-      overallSuccess,
-      diagnosticScope: "loader",
-      scopeSuccess: false,
-      computeCertified: false,
-      modelCertified: false,
-      capabilityStatus: loaderPath ? "LOADER_PRESENT_UNVERIFIED" : "LOADER_NOT_FOUND",
-      verificationSource: "pure_js_probe",
+      overallSuccess: Boolean(diag.overallSuccess),
+      diagnosticScope: diag.diagnosticScope || "compute",
+      scopeSuccess: diag.scopeSuccess !== undefined ? Boolean(diag.scopeSuccess) : Boolean(diag.overallSuccess),
+      computeCertified: Boolean(diag.computeCertified),
+      modelCertified: Boolean(diag.modelCertified),
+      capabilityStatus: diag.computeCertified ? "COMPUTE_CERTIFIED" : "COMPUTE_UNVERIFIED",
+      verificationSource: "native_c_hal",
       verifiedAt: new Date().toISOString(),
-      deviceName,
-      driverVersion: "Vulkan 1.1+",
-      loaderPath: loaderPath || "None",
-      passedStages: passed,
-      totalStages: 12,
-      totalElapsedMs: totalElapsed,
-      recommendedBackend: "cpu_neon",
-      stages
+      deviceName: diag.deviceName || "Unknown",
+      driverVersion: diag.driverVersion || "Unknown",
+      loaderPath: diag.loaderPath || "Unknown",
+      passedStages: diag.passedStages,
+      totalStages: diag.totalStages,
+      totalElapsedMs: diag.totalElapsedMs,
+      recommendedBackend: diag.recommendedBackend,
+      exitCode: diag.exitCode,
+      stages: []
     };
-
-    if (verbose) {
-      console.log("------------------------------------------------------------");
-      console.log(`  Scorecard: ${passed}/12 Stages Passed | Time: ${totalElapsed.toFixed(2)} ms | Backend: ${report.recommendedBackend}`);
-      console.log("============================================================\n");
-    }
-
-    // Strict Anti-Corruption: Pure JS probe MUST NOT overwrite valid native hardware certification state!
-    try {
-      const jsProbePath = path.join(path.dirname(this.statePath), 'vulkan_state_js_probe.json');
-      fs.writeFileSync(jsProbePath, JSON.stringify(report, null, 2), 'utf-8');
-    } catch (e) {}
-
     return report;
   }
 

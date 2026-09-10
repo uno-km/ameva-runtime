@@ -26,6 +26,18 @@ const ctx = createContext({ device: "auto" });
 console.log(`Selected Backend: ${ctx.selectedBackend}`); // "vulkan" on certified hardware
 ```
 
+## Platform Compatibility & Native Verification Matrix
+
+| Platform / Environment | Architecture | Node.js Runtime | Native Vulkan HAL | Subprocess Engine | Verification Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Android 15 Termux** | `arm64` (aarch64) | Node.js 26.3.1 | :white_check_mark: Prebuilt (`vulkan 1.3`) | :white_check_mark: Supported | **VERIFIED (Galaxy S25 / Adreno 830)** |
+| **Android / Termux** | `arm64` | Node.js (Node-API v8+) | :ballot_box_with_check: Expected compatible | :white_check_mark: Supported | Expected compatible via Node-API |
+| **Windows / Linux / macOS** | `x64` / `arm64` | Node.js >= 18.0.0 | :x: Not provided (Fail-Fast) | :white_check_mark: Supported | **JS & Subprocess Engine Only** |
+| **Other Android distros** | Any | Any | :question: Untested | :question: Untested | Not yet verified |
+
+> [!NOTE]
+> Native GPU acceleration is currently verified exclusively on Android 15 Termux arm64 with Node.js 26.3.1 (Snapdragon 8 Elite / Adreno 830). On non-verified or non-Android platforms, native operations (`Doctor.runSelfTest()`, explicit GPU contexts) strictly fail-fast with `PlatformNotSupportedError`, while pure JavaScript APIs and the hardened `executeSubprocess` engine remain fully operational.
+
 ## Architecture & Certification Contracts
 
 AMEVA-Runtime enforces a strict separation between active hardware probing and synchronous state consumption:

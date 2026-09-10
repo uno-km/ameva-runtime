@@ -19,6 +19,7 @@ const {
   LlamaCppAdapter,
   TtsAdapter,
   VisionAdapter,
+  PlatformNotSupportedError,
   nativeBridge
 } = require('./index');
 
@@ -29,18 +30,22 @@ async function runTests() {
 
   // 1. Doctor Test
   const doc = new Doctor();
-  const report = await doc.runSelfTest(false);
-  assert.strictEqual(typeof report.overallSuccess, 'boolean', "overallSuccess must be boolean");
   if (isNative) {
+    const report = await doc.runSelfTest(false);
+    assert.strictEqual(typeof report.overallSuccess, 'boolean', "overallSuccess must be boolean");
     assert.strictEqual(report.overallSuccess, true, "Native Doctor must report overallSuccess=true on compute-certified GPU");
     assert.strictEqual(report.computeCertified, true, "Native Doctor must certify compute");
     assert.strictEqual(doc.quickProbe(), true, "Doctor.quickProbe() must be true on certified hardware");
+    assert.strictEqual(typeof report.passedStages, 'number', "passedStages must be number");
+    assert.strictEqual(Array.isArray(report.stages), true, "stages must be an array");
   } else {
-    assert.strictEqual(report.overallSuccess, false, "Pure JS runSelfTest must honestly report overallSuccess=false");
+    await assert.rejects(
+      async () => await doc.runSelfTest(false),
+      (err) => err instanceof PlatformNotSupportedError || err.name === 'PlatformNotSupportedError',
+      "Doctor.runSelfTest() must throw PlatformNotSupportedError when native addon is unavailable"
+    );
     assert.strictEqual(doc.quickProbe(), false, "Pure JS probe without native_c_hal must return false in quickProbe()");
   }
-  assert.strictEqual(typeof report.passedStages, 'number', "passedStages must be number");
-  assert.strictEqual(Array.isArray(report.stages), true, "stages must be an array");
 
   // 2. CPU Mode Bypass Test
   const cpuCtx = createContext({ device: "cpu" });

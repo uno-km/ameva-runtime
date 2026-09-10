@@ -1,0 +1,9 @@
+﻿AMEVA Runtime
+Copyright 2026 Eunho Kim (@uno-km) & AMEVA Open-Source Foundation
+
+This product includes software developed at
+The AMEVA Open-Source Foundation (https://github.com/uno-km/ameva-runtime).
+
+Third-Party Components and Attributions:
+- Khronos Group Vulkan API: Headers and specifications licensed under Apache-2.0.
+- Node.js Node-API: Native C bindings interface provided by OpenJS Foundation (MIT).

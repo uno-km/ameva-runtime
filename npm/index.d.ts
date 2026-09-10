@@ -146,3 +146,19 @@ export interface SubprocessResult {
 export function executeSubprocess(options: SubprocessOptions): Promise<SubprocessResult>;
 export function validateExecutable(executable: string): Promise<string>;
 export function toSubprocessOptions(plan: any, executable: string, extraArgs?: string[], options?: Partial<SubprocessOptions>): SubprocessOptions;
+
+export interface NativeAddonInfo {
+  loaded: boolean;
+  source?: string | null;
+  platform: string;
+  arch: string;
+  path?: string | null;
+  errorCode?: string;
+  errorMessage?: string;
+}
+
+export const nativeBridge: {
+  isNativeLoaded(): boolean;
+  getNativeAddonInfo(): NativeAddonInfo;
+  [key: string]: any;
+};
