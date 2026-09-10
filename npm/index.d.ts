@@ -77,3 +77,72 @@ export const BitnetAdapter: typeof BitnetExecutionPlan;
 export const LlamaCppAdapter: typeof LlamaCppExecutionPlan;
 export const TtsAdapter: typeof TtsExecutionPlan;
 export const VisionAdapter: typeof VisionExecutionPlan;
+
+export interface SubprocessOptions {
+  executable: string;
+  args?: string[];
+  env?: Record<string, string>;
+  runtimeEnv?: {
+    LD_LIBRARY_PATH?: string;
+    VK_ICD_FILENAMES?: string;
+  };
+  allowedRuntimeRoots?: string[];
+  cwd?: string;
+  timeoutMs?: number;
+  gracePeriodMs?: number;
+  maxStdoutBytes?: number;
+  maxStderrBytes?: number;
+  maxTelemetryBytes?: number;
+  maxTelemetryLineBytes?: number;
+  maxTelemetryMessages?: number;
+  signal?: AbortSignal;
+  backendRequested?: string | null;
+}
+
+export interface SubprocessMetrics {
+  processingDurationMs?: number;
+  inputDurationMs?: number;
+  tokensPerSecond?: number;
+  rtf?: number;
+}
+
+export interface SubprocessTelemetryError {
+  code: string;
+  lineNumber: number;
+  error?: string;
+}
+
+export interface SubprocessResult {
+  spawned: boolean;
+  pid: number | null;
+  exitCode: number | null;
+  signal: string | null;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  terminationReason: "COMPLETED" | "EXIT_NONZERO" | "OUTPUT_LIMIT_EXCEEDED" | "ABORTED" | "TIMEOUT" | "SPAWN_ERROR";
+  secondaryReasons: string[];
+  timedOut: boolean;
+  aborted: boolean;
+  stdoutTruncated: boolean;
+  stderrTruncated: boolean;
+  spawnErrorCode: string | null;
+  termSignalAttempted: boolean;
+  termSignalDelivered: boolean;
+  killSignalAttempted: boolean;
+  killSignalDelivered: boolean;
+  termSignalSent: boolean;
+  killSignalSent: boolean;
+  backendRequested: string | null;
+
+  backendConfirmed: string | null;
+  backendDevice: string | null;
+  verificationSource: string;
+  telemetryErrors: SubprocessTelemetryError[];
+  metrics: SubprocessMetrics;
+  backendHints: string[];
+}
+
+export function executeSubprocess(options: SubprocessOptions): Promise<SubprocessResult>;
+export function validateExecutable(executable: string): Promise<string>;
+export function toSubprocessOptions(plan: any, executable: string, extraArgs?: string[], options?: Partial<SubprocessOptions>): SubprocessOptions;

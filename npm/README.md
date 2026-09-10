@@ -32,7 +32,8 @@ AMEVA-Runtime enforces a strict separation between active hardware probing and s
 
 ### 1. Active Probing (`Doctor.runSelfTest()`)
 - Directly dispatches into `ameva_native.node` via N-API and executes official Vulkan C ABI diagnostics (V0 through V9).
-- Generates and signs `vulkan_state.json` with SHA-256 protected hardware fingerprint metadata (`vendorId`, `deviceId`, `apiVersion`, `driverVersion`, `loaderPath`) and ISO-8601 UTC timestamp (`verifiedAt`).
+- Issues `vulkan_state.json` containing hardware fingerprint metadata (`vendorId`, `deviceId`, `apiVersion`, `driverVersion`, `loaderPath`), recorded SHA-256 identifiers for relevant artifacts, and ISO-8601 UTC timestamp (`verifiedAt`).
+- Note: The state file is not cryptographically signed.
 
 ### 2. State Consumption (`isAvailable()`, `createContext()`)
 - `createContext()` does **not** execute heavy GPU diagnostics on each synchronous instantiation.
@@ -41,13 +42,39 @@ AMEVA-Runtime enforces a strict separation between active hardware probing and s
   - Enforces origin verification (`verificationSource === "native_c_hal"`).
   - Enforces `computeCertified === true` and `diagnosticScope === "compute"`.
   - Performs **Certificate Metadata Validation** against the local driver loader path and canonical schema.
-- Note: `quickProbe()` trusts the verified cryptographic state signed by Native HAL; it does **not** perform real-time GPU hardware re-querying during synchronous context instantiation.
+- Note: `quickProbe()` trusts the verified **Native Compute certification state** issued by Native HAL; it does **not** perform real-time GPU hardware re-querying during synchronous context instantiation.
 
 ### 3. Certification Status Separation
 - **Doctor Compute Certified**: Strictly evaluates to `true` when stages V0 (Loader Open) through V9 (Result Checksum Validation) all individually PASS.
 - **Doctor Model Certified**: Strictly evaluates to `false` in current releases, as high-level model runtime graphs (V10–V11) are deferred to dedicated engines.
 - **Modality Engine Benchmarks**: Real-device performance figures (LLaMA-3.2, SDXS, Whisper) are empirical measurements from separate model runtime executions, decoupled from Doctor V11 PASS status.
 - **CPU Reference GEMM**: `matmulF32` is a native host C reference implementation (`backend: "cpu_reference"`, `vulkanDispatch: "NOT_PERFORMED"`).
+
+## Controlled Subprocess Execution Engine (Phase N2)
+
+AMEVA-Runtime provides a hardened, single-shot subprocess execution layer (`executeSubprocess`) designed for running on-device AI binaries (e.g. LLaMA.cpp, Whisper.cpp):
+- **Deterministic Invocation**: Strictly enforces `shell: false`, array arguments, and pre-validated absolute executable paths.
+- **Resource Limits & OOM Protection**: Independent stream bounds (`maxStdoutBytes`, `maxStderrBytes`, `maxTelemetryBytes`). Exceeding boundaries triggers `OUTPUT_LIMIT_EXCEEDED` with graceful `SIGTERM` followed by `SIGKILL`.
+- **First-Cause-Wins Termination**: Clear, unambiguous primary termination tracking across timeouts, abort signals, and limit violations.
+- **Structured Telemetry (FD 3)**: Acceleration backends (`backendConfirmed`) are verified exclusively via schema-validated JSON Lines on dedicated file descriptor 3 (`AMEVA_TELEMETRY_FD=3`). Unstructured stdout/stderr strings are kept as unconfirmed diagnostic hints only.
+
+```typescript
+import { executeSubprocess, LlamaCppExecutionPlan, createContext } from '@ameva/runtime';
+
+const ctx = createContext({ device: "auto" });
+const plan = LlamaCppExecutionPlan.create("llama-cli", ctx);
+
+const result = await executeSubprocess(plan.toSubprocessOptions("/data/data/com.termux/files/usr/bin/llama-cli", [
+  "-m", "/sdcard/models/llama-3.2-1b.gguf",
+  "-p", "Hello world",
+  "-n", "32"
+], {
+  timeoutMs: 15000,
+  maxStdoutBytes: 2 * 1024 * 1024
+}));
+
+console.log(`Exit Code: ${result.exitCode}, Backend Confirmed: ${result.backendConfirmed}`);
+```
 
 ## Documentation
 - [Official Documentation](https://uno-km.vercel.app/lib/vulkan/)
