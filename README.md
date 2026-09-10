@@ -1,13 +1,17 @@
 # AMEVA-Runtime
 
 [![PyPI](https://img.shields.io/pypi/v/ameva-runtime.svg?style=flat-square&color=0369a1)](https://pypi.org/project/ameva-runtime/)
-[![Python](https://img.shields.io/pypi/pyversions/ameva-runtime.svg?style=flat-square)](https://pypi.org/project/ameva-runtime/)
 [![npm](https://img.shields.io/npm/v/@ameva/runtime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
-[![GitHub Release](https://img.shields.io/github/v/release/uno-km/ameva-runtime?style=flat-square&color=0969da)](https://github.com/uno-km/ameva-runtime/releases/tag/v2.5.0)
 [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
-<img src="https://img.shields.io/badge/BitNet%201.58b-Vulkan%20Compute%20Accelerated-purple.svg?logo=vulkan&logoColor=white" alt="BitNet Vulkan">
 
-> Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime (with BitNet 1.58-bit Vulkan Compute) for Mobile & Edge
+> Unified On-Device Hardware Orchestration & Controlled Subprocess Execution Runtime for Mobile & Edge
+
+---
+
+## Distribution & Versioning SSOT
+- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.1` (Controlled Subprocess Execution & Native Doctor Probing)
+- **Python Package**: `ameva-runtime 2.5.0`
+- **Native Vulkan HAL ABI**: `1.2.0` (C ABI Bridge Version 1)
 
 ---
 
@@ -17,11 +21,11 @@ AMEVA-Runtime is a hardware abstraction layer (HAL) and compute orchestration en
 
 ### 6-Modality Acceleration Matrix
 
-| Modality | Engine Integration | Status (v2.5.0) | Hardware Acceleration Mechanism |
+| Modality | Engine Integration | Status | Hardware Acceleration Mechanism |
 | :--- | :--- | :---: | :--- |
-| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.5.0)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
-| **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
-| **3. TTS (Audio)** | Sherpa-NCNN / Piper | **Production** | Pure Vulkan GPU neural synthesis (Adreno RTF 0.264x, Mali RTF 1.146x) |
+| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Verified (Termux ARM64)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
+| **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Verified (Termux ARM64)** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
+| **3. TTS (Audio)** | Sherpa-NCNN / Piper | **Verified (Termux ARM64)** | Pure Vulkan GPU neural synthesis (Adreno RTF 0.264x, Mali RTF 1.146x) |
 | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
 | **5. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **In Development** | On-device Vulkan UNet & DiT tensor offload |
 | **6. Train (Training)** | On-Device LoRA / QLoRA | **In Development** | Mobile Vulkan gradient descent backpropagation |

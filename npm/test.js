@@ -48,10 +48,11 @@ async function runTests() {
   }
 
   // 2. CPU Mode Bypass Test
+  const expectedCpuBackend = process.arch === 'arm64' ? "cpu_neon" : "cpu_reference";
   const cpuCtx = createContext({ device: "cpu" });
   assert.strictEqual(cpuCtx.isGpu, false, "CPU mode should not be GPU");
-  assert.strictEqual(cpuCtx.backendType, "cpu_neon", "CPU backend type should be cpu_neon");
-  assert.strictEqual(cpuCtx.selectedBackend, "cpu_neon");
+  assert.strictEqual(cpuCtx.backendType, expectedCpuBackend, `CPU backend type should be ${expectedCpuBackend}`);
+  assert.strictEqual(cpuCtx.selectedBackend, expectedCpuBackend);
   assert.strictEqual(cpuCtx.selectionReason, "explicit_cpu_request");
   const whisperFlags = cpuCtx.toEngineFlags("whisper");
   assert.strictEqual(whisperFlags.useGpu, false, "whisper flags should reflect CPU");
@@ -64,7 +65,7 @@ async function runTests() {
     assert.strictEqual(autoCtx.selectedBackend, "vulkan", "Certified GPU must auto-route to vulkan");
     assert.strictEqual(autoCtx.selectionReason, "vulkan_certified_hardware");
   } else {
-    assert.strictEqual(autoCtx.selectedBackend, "cpu_neon", "Unverified GPU environment must auto-route to cpu_neon");
+    assert.strictEqual(autoCtx.selectedBackend, expectedCpuBackend, `Unverified GPU environment must auto-route to ${expectedCpuBackend}`);
     assert.strictEqual(autoCtx.selectionReason, "vulkan_probe_unverified");
   }
 

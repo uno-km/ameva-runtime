@@ -35,8 +35,12 @@ console.log(`Selected Backend: ${ctx.selectedBackend}`); // "vulkan" on certifie
 | **Windows / Linux / macOS** | `x64` / `arm64` | Node.js >= 18.0.0 | :x: Not provided (Fail-Fast) | :white_check_mark: Supported | **JS & Subprocess Engine Only** |
 | **Other Android distros** | Any | Any | :question: Untested | :question: Untested | Not yet verified |
 
-> [!NOTE]
-> Native GPU acceleration is currently verified exclusively on Android 15 Termux arm64 with Node.js 26.3.1 (Snapdragon 8 Elite / Adreno 830). On non-verified or non-Android platforms, native operations (`Doctor.runSelfTest()`, explicit GPU contexts) strictly fail-fast with `PlatformNotSupportedError`, while pure JavaScript APIs and the hardened `executeSubprocess` engine remain fully operational.
+> [!IMPORTANT]
+> **Native Addon Host Environment Dependency**:
+> The prebuilt native addon (`prebuilds/android-arm64/ameva_native.node`) is compiled for Termux and dynamically resolves `libc++_shared.so` from Termux `$PREFIX/lib`. It is not a completely standalone binary and requires the official Termux runtime environment with standard path layout.
+>
+> **CPU Context Notice**:
+> `createContext({ device: "cpu" })` produces routing metadata and execution flags for downstream AI adapters; it is not a standalone native CPU compute kernel on desktop hosts. On non-ARM64 platforms (e.g. Windows x64), it initializes `selectedBackend: "cpu_reference"`.
 
 ## Architecture & Certification Contracts
 

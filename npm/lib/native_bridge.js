@@ -11,17 +11,34 @@ let addonInfo = {
   errorMessage: `No native addon is available for ${process.platform}-${process.arch}.`
 };
 
+// 1. Packaged prebuilds take first priority
 const candidates = [
-  { source: 'env', path: process.env.AMEVA_NATIVE_PATH },
   { source: 'prebuilt', path: path.resolve(__dirname, '../prebuilds', `${process.platform}-${process.arch}`, 'ameva_native.node') },
   { source: 'build_release', path: path.resolve(__dirname, '../build/Release/ameva_native.node') },
   { source: 'dev_build_release', path: path.resolve(__dirname, '../../build/Release/ameva_native.node') },
   { source: 'dev_build_debug', path: path.resolve(__dirname, '../../build/Debug/ameva_native.node') },
   { source: 'local', path: path.resolve(__dirname, './ameva_native.node') }
-].filter(c => Boolean(c.path));
+];
+
+// 2. Strict opt-in environment override validation (requires AMEVA_ALLOW_NATIVE_OVERRIDE=1)
+if (process.env.AMEVA_ALLOW_NATIVE_OVERRIDE === '1' && process.env.AMEVA_NATIVE_PATH) {
+  const envPath = process.env.AMEVA_NATIVE_PATH;
+  if (
+    typeof envPath === 'string' &&
+    !envPath.includes('\0') &&
+    path.isAbsolute(envPath) &&
+    envPath.endsWith('.node')
+  ) {
+    try {
+      if (fs.existsSync(envPath) && fs.statSync(envPath).isFile()) {
+        candidates.unshift({ source: 'environment_override', path: envPath });
+      }
+    } catch (_) {}
+  }
+}
 
 for (const candidate of candidates) {
-  if (fs.existsSync(candidate.path)) {
+  if (candidate.path && fs.existsSync(candidate.path)) {
     try {
       nativeModule = require(candidate.path);
       addonInfo = {

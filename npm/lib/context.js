@@ -11,18 +11,23 @@ class VulkanContext {
     this.deviceMode = String(rawMode).trim().toLowerCase();
     this.memoryLimitMb = options.memoryLimitMb || 1024;
     this.doctor = new Doctor();
-    this.deviceName = "CPU";
-    this.backendType = "cpu_neon";
+    const isArm64 = process.arch === 'arm64';
+    this.deviceName = isArm64 ? "ARM64 NEON Vector CPU Engine" : "Host Generic CPU Reference Engine";
+    this.backendType = isArm64 ? "cpu_neon" : "cpu_reference";
     this.vulkanVersion = "1.3.284";
     this.isActive = false;
     this.executionFlags = {};
-    this.selectedBackend = "cpu_neon";
+    this.selectedBackend = this.backendType;
     this.selectionReason = "uninitialized";
 
     this._initialize();
   }
 
   _initialize() {
+    const isArm64 = process.arch === 'arm64';
+    const cpuBackend = isArm64 ? "cpu_neon" : "cpu_reference";
+    const cpuDeviceName = isArm64 ? "ARM64 NEON Vector CPU Engine" : "Host Generic CPU Reference Engine";
+
     if (this.deviceMode === "vulkan" || this.deviceMode === "gpu") {
       const isSupported = this.doctor.quickProbe();
       if (!isSupported) {
@@ -38,11 +43,11 @@ class VulkanContext {
       this.executionFlags = { useGpu: true, gpuLayers: 99, backend: "vulkan" };
       this.isActive = true;
     } else if (this.deviceMode === "cpu") {
-      this.backendType = "cpu_neon";
-      this.selectedBackend = "cpu_neon";
+      this.backendType = cpuBackend;
+      this.selectedBackend = cpuBackend;
       this.selectionReason = "explicit_cpu_request";
-      this.deviceName = "ARM64 NEON Vector CPU Engine";
-      this.executionFlags = { useGpu: false, threads: (os.cpus() || []).length || 4, backend: "cpu_neon" };
+      this.deviceName = cpuDeviceName;
+      this.executionFlags = { useGpu: false, threads: (os.cpus() || []).length || 4, backend: cpuBackend };
       this.isActive = true;
     } else { // "auto"
       const isSupported = this.doctor.quickProbe();
@@ -53,11 +58,11 @@ class VulkanContext {
         this.deviceName = this.doctor.quickProbeDevice() || "Qualcomm Adreno / ARM Mali Vulkan GPU";
         this.executionFlags = { useGpu: true, gpuLayers: 99, backend: "vulkan" };
       } else {
-        this.backendType = "cpu_neon";
-        this.selectedBackend = "cpu_neon";
+        this.backendType = cpuBackend;
+        this.selectedBackend = cpuBackend;
         this.selectionReason = "vulkan_probe_unverified";
-        this.deviceName = "ARM64 NEON Vector CPU Engine (Auto-Routed)";
-        this.executionFlags = { useGpu: false, threads: (os.cpus() || []).length || 4, backend: "cpu_neon" };
+        this.deviceName = `${cpuDeviceName} (Auto-Routed)`;
+        this.executionFlags = { useGpu: false, threads: (os.cpus() || []).length || 4, backend: cpuBackend };
       }
       this.isActive = true;
     }

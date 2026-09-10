@@ -68,9 +68,10 @@ async function runPublicApiTestSuite() {
     assert(ctxAuto.deviceName.includes('Adreno'), `Expected Adreno deviceName, got: ${ctxAuto.deviceName}`);
     recordPass(`createContext({ device: 'auto' }) successfully promoted to Vulkan: device='${ctxAuto.deviceName}'`);
   } else {
-    assert.strictEqual(ctxAuto.selectedBackend, 'cpu_neon');
+    const expectedCpu = process.arch === 'arm64' ? 'cpu_neon' : 'cpu_reference';
+    assert.strictEqual(ctxAuto.selectedBackend, expectedCpu);
     assert.strictEqual(ctxAuto.isGpu, false);
-    recordPass("createContext({ device: 'auto' }) safely routed to cpu_neon on uncertified host");
+    recordPass(`createContext({ device: 'auto' }) safely routed to ${expectedCpu} on uncertified host`);
   }
 
   // 5. createContext({ device: "vulkan" })
@@ -89,11 +90,12 @@ async function runPublicApiTestSuite() {
   }
 
   // 6. createContext({ device: "cpu" })
+  const expectedCpu = process.arch === 'arm64' ? 'cpu_neon' : 'cpu_reference';
   const ctxCpu = createContext({ device: 'cpu' });
-  assert.strictEqual(ctxCpu.selectedBackend, 'cpu_neon');
+  assert.strictEqual(ctxCpu.selectedBackend, expectedCpu);
   assert.strictEqual(ctxCpu.isGpu, false);
   assert.strictEqual(ctxCpu.selectionReason, 'explicit_cpu_request');
-  recordPass("createContext({ device: 'cpu' }) explicitly selected cpu_neon");
+  recordPass(`createContext({ device: 'cpu' }) explicitly selected ${expectedCpu}`);
 
   console.log(`\n[SUCCESS] All ${passCount}/6 Public API Unification criteria passed!`);
 }

@@ -3,8 +3,16 @@
 All notable changes and milestones for `ameva-runtime` will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and Apache-2.0 governance.
 
-## [v0.2.0-alpha.1] - 2026-09-10
-### Controlled Subprocess Execution Engine & Standalone Public Alpha Release
+## [v2.6.0-alpha.1] - 2026-09-10
+### Controlled Subprocess Execution Engine & Public Alpha Release
+
+#### Version Architecture SSOT
+- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.1` (maintains monotonic SemVer progression from published v2.5.0)
+- **Python Distribution**: `2.5.0` (independent distribution baseline)
+- **Node-API Bridge ABI**: Version 1
+- **Native Vulkan HAL ABI**: Version 1.2.0
+- **Telemetry Schema**: Version 1 (FD 3 JSONL)
+- **Hardware Certificate Schema**: Version 2
 
 #### Highlights
 - **Controlled Subprocess Execution Engine (Phase N2)**:
@@ -14,20 +22,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   - First-Cause-Wins deterministic termination model across timeouts, abort signals, and limit violations.
   - Two-phase lifecycle termination: `SIGTERM` followed by grace period escalation to `SIGKILL` on POSIX.
   - Dedicated Structured Telemetry channel on FD 3 (`AMEVA_TELEMETRY_FD=3`) with conflict detection locking (`telemetry_conflict`).
-- **Packaged Native Addon & Non-Blocking Architecture**:
+- **Packaged Native Addon & Host Runtime Dependency**:
   - Included prebuilt native C ABI addon for `android-arm64` (`prebuilds/android-arm64/ameva_native.node`) verified on Snapdragon 8 Elite / Adreno 830.
+  - **Runtime Dependency Notice**: Dynamically links against Termux `$PREFIX/lib/libc++_shared.so` and requires the standard Termux environment layout (not a standalone Bionic-only binary).
   - Strict non-blocking package import: `require('@ameva/runtime')` succeeds on all platforms.
   - Zero-silent-fallback fail-fast policy: on platforms without native addon support (e.g. Windows x64), native GPU calls and `Doctor.runSelfTest()` strictly reject with `PlatformNotSupportedError`, while pure JavaScript APIs and the Subprocess Engine remain fully operational.
-  - Added native addon diagnostic inspection API: `nativeBridge.getNativeAddonInfo()`.
+  - Hardened native addon diagnostic inspection API: `nativeBridge.getNativeAddonInfo()`. Environment override requires explicit opt-in (`AMEVA_ALLOW_NATIVE_OVERRIDE=1`).
 - **Empirical Real-Device Validation (Samsung Galaxy S25 / Snapdragon 8 Elite / Adreno 830)**:
   - Verified inside clean isolated `node_modules` environment (`s25-release-smoke`).
   - 10-Gate Packaged Smoke Verification: 10/10 PASS.
   - Native Doctor hardware probe: Stages V0-V9 PASS (10/12 stages, `computeCertified: true`, `recommendedBackend: "vulkan"`).
   - 13-Gate Subprocess Lifecycle Suite: 62/62 assertions PASS (including SIGTERM -> SIGKILL escalation and 1,000-run cycle completion).
 - **Compliance & Artifact Integrity**:
-  - Full Apache-2.0 license text and `NOTICE` third-party attributions.
-  - Added prebuild manifest (`manifest.json`) recording artifact SHA-256, Node-API level 8, and verified device details.
-  - Generated external release manifest: `release/SHA256SUMS` (`36c3c8887f54c175b50b354571d65b4bbea507d18e761497fa4c8b21dc6fbdd5`).
+  - Pure standard Apache-2.0 license text in `LICENSE` and separated attribution in `NOTICE`.
+  - Added comprehensive `THIRD_PARTY_NOTICES.md` and `source-provenance.json`.
+  - Prebuild manifest (`manifest.json`) recording artifact SHA-256, Node-API level 8, and runtime dependencies.
+  - Generated external release manifest: `release/SHA256SUMS`.
 
 #### Known Limitations
 - Single-shot execution only; persistent resident worker daemon is deferred to Phase N3.
