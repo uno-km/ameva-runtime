@@ -79,6 +79,7 @@ def safe_extract_tar(
     seen_paths = set()
     total_expanded_size = 0
     member_count = 0
+    validated_members = []
 
     with tarfile.open(archive_path, "r:gz") as tar:
         for member in tar.getmembers():
@@ -150,8 +151,10 @@ def safe_extract_tar(
                         f"MAX_TOTAL_EXPANDED_SIZE_ENFORCED: total expanded size ({total_expanded_size} bytes) exceeds limit ({max_total_size} bytes)"
                     )
 
-        # Atomic pre-validation complete: extract only after all checks pass
-        tar.extractall(target_dir)
+            validated_members.append(member)
+
+        # Pre-validation complete: extract only explicitly validated members
+        tar.extractall(path=target_dir, members=validated_members)
 
 
 def verify_sha256(path: Path, expected: Optional[str]) -> None:

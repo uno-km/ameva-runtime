@@ -261,6 +261,26 @@ class TestInstallerSecurity(unittest.TestCase):
             safe_extract_tar(archive, target_dir, max_path_depth=3)
         self.assertIn("MAX_PATH_DEPTH_ENFORCED", str(ctx.exception))
 
+    def test_production_limit_constants_match_policy(self):
+        import inspect
+        from ameva_runtime.installer import (
+            MAX_ARCHIVE_FILE_COUNT,
+            MAX_ARCHIVE_SINGLE_FILE_SIZE,
+            MAX_ARCHIVE_TOTAL_EXPANDED_SIZE,
+            MAX_ARCHIVE_PATH_DEPTH,
+            safe_extract_tar,
+        )
+        self.assertEqual(MAX_ARCHIVE_FILE_COUNT, 1000)
+        self.assertEqual(MAX_ARCHIVE_SINGLE_FILE_SIZE, 250 * 1024 * 1024)
+        self.assertEqual(MAX_ARCHIVE_TOTAL_EXPANDED_SIZE, 500 * 1024 * 1024)
+        self.assertEqual(MAX_ARCHIVE_PATH_DEPTH, 16)
+
+        sig = inspect.signature(safe_extract_tar)
+        self.assertEqual(sig.parameters["max_file_count"].default, MAX_ARCHIVE_FILE_COUNT)
+        self.assertEqual(sig.parameters["max_single_file_size"].default, MAX_ARCHIVE_SINGLE_FILE_SIZE)
+        self.assertEqual(sig.parameters["max_total_size"].default, MAX_ARCHIVE_TOTAL_EXPANDED_SIZE)
+        self.assertEqual(sig.parameters["max_path_depth"].default, MAX_ARCHIVE_PATH_DEPTH)
+
 
 if __name__ == "__main__":
     unittest.main()
