@@ -1,0 +1,35 @@
+#version 450
+
+// ============================================================================
+// AMEVA Runtime - In-Place Residual Stream Accumulation Compute Shader
+// Hardware Target: ARM Mali & Qualcomm Adreno
+// Math: x[i] += delta[i]
+// Binding 2: DeltaBuffer (output_buffer_ read-only)
+// Binding 4: ResidualBuffer (residual_buffer_ in-place read/write)
+// Workgroup: local_size_x = 256
+// ============================================================================
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 2) readonly buffer DeltaBuffer {
+    float delta[];
+};
+
+layout(std430, binding = 4) buffer ResidualBuffer {
+    float x[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint in_dim;             // dim (e.g. 2560)
+    uint out_dim;            // unused
+    float dequant_scale;     // unused
+    uint weight_offset_bytes;// unused
+    uint output_offset_words;// unused
+} params;
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    if (i < params.in_dim) {
+        x[i] += delta[i];
+    }
+}

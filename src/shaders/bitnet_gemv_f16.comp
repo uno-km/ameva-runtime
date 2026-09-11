@@ -1,0 +1,101 @@
+#version 450
+
+// ============================================================================
+// AMEVA Runtime - FP16 GEMV Compute Shader (LM Head / Vocabulary Projection)
+// Hardware Target: ARM Mali (Bifrost/Valhall) & Qualcomm Adreno (6xx/7xx/8xx)
+// Implementation: Native unpackHalf2x16 with 4-wide SIMD dot product
+// Memory Specification: Standard std430 host-coherent SSBO
+// ============================================================================
+
+layout(local_size_x = 32, local_size_y = 4, local_size_z = 1) in;
+
+// Binding 0: Packed FP16 weights (each uint holds two 16-bit IEEE half floats)
+layout(std430, binding = 0) readonly buffer WeightBuffer {
+    uint raw_weights[];
+};
+
+// Binding 1: Input normalized hidden state vector x
+layout(std430, binding = 1) readonly buffer ActivationBuffer {
+    float activations[];
+};
+
+// Binding 2: Output logits vector
+layout(std430, binding = 2) writeonly buffer OutputBuffer {
+    float output_vec[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint in_dim;             // Input dimension K (e.g. 2560, multiple of 64)
+    uint out_dim;            // Output dimension M (e.g. 128256)
+    float dequant_scale;     // Unused in F16
+    uint weight_offset_bytes;// Offset into raw_weights in bytes (multiple of 4)
+    uint output_offset_words;// Offset into output_vec in floats
+} params;
+
+// Shared memory for 32-thread row tree reduction
+shared float row_shared_sum[4][32];
+
+void main() {
+    uint local_lane = gl_LocalInvocationID.x; // 0..31
+    uint local_row  = gl_LocalInvocationID.y; // 0..3
+    uint global_row = gl_WorkGroupID.x * 4 + local_row;
+
+    float thread_accumulator = 0.0;
+
+    if (global_row < params.out_dim) {
+        // Each row has in_dim half-floats = (in_dim / 2) uints
+        uint words_per_row = params.in_dim / 2u;
+        uint row_word_base = (params.weight_offset_bytes / 4u) + global_row * words_per_row;
+
+        // 32 threads collaborate to compute dot product of in_dim elements
+        // Each loop iteration processes 32 * 4 = 128 elements (64 uint words)
+        uint num_iterations = params.in_dim / 128u;
+
+        for (uint it = 0; it < num_iterations; ++it) {
+            uint col_base = it * 128u + local_lane * 4u;
+            uint w_idx = row_word_base + (col_base / 2u);
+
+            uint packed0 = raw_weights[w_idx];
+            uint packed1 = raw_weights[w_idx + 1u];
+
+            vec2 w01 = unpackHalf2x16(packed0);
+            vec2 w23 = unpackHalf2x16(packed1);
+            vec4 w_vec = vec4(w01, w23);
+
+            vec4 x_vec = vec4(activations[col_base],
+                              activations[col_base + 1u],
+                              activations[col_base + 2u],
+                              activations[col_base + 3u]);
+
+            thread_accumulator += dot(w_vec, x_vec);
+        }
+
+        // Handle remaining tail if in_dim is not a multiple of 128 (e.g. multiples of 64 or 4)
+        uint tail_col = num_iterations * 128u + local_lane * 4u;
+        if (tail_col + 3u < params.in_dim) {
+            uint w_idx = row_word_base + (tail_col / 2u);
+            vec4 w_vec = vec4(unpackHalf2x16(raw_weights[w_idx]), unpackHalf2x16(raw_weights[w_idx + 1u]));
+            vec4 x_vec = vec4(activations[tail_col], activations[tail_col + 1u], activations[tail_col + 2u], activations[tail_col + 3u]);
+            thread_accumulator += dot(w_vec, x_vec);
+        }
+    }
+
+    // Workgroup parallel tree reduction (32 lanes -> 1 lane per row)
+    row_shared_sum[local_row][local_lane] = thread_accumulator;
+    barrier();
+
+    if (local_lane < 16) { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 16]; }
+    barrier();
+    if (local_lane < 8)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 8];  }
+    barrier();
+    if (local_lane < 4)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 4];  }
+    barrier();
+    if (local_lane < 2)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 2];  }
+    barrier();
+    if (local_lane < 1)  { row_shared_sum[local_row][local_lane] += row_shared_sum[local_row][local_lane + 1];  }
+
+    // Master thread writes final logit value
+    if (local_lane == 0 && global_row < params.out_dim) {
+        output_vec[params.output_offset_words + global_row] = row_shared_sum[local_row][0];
+    }
+}

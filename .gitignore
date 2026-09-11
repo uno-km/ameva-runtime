@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.dylib
+*.dll
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+# Artifacts / Outputs
+tools/*.png
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+package-lock.json
+*.tgz
+release/
+
+# C/C++ Build
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.o
+*.a
+/bin/
+
+state.json
+*.tmp
+
+
+
+*ssh*.py
+ssh_real_device_test.py
+
+
+# ==============================================================================
+# Security & Credentials Isolation Policy
+# ==============================================================================
+.env*
+!.env.example
+.env.*
+*.pem
+*.key
+*.crt
+id_rsa*
+.pypirc
+.npmrc
+secrets.json
+scratch/
+cluster_config.json
+!cluster_config.example.json
+fleet_hosts.json
+.fleet*

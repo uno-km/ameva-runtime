@@ -1,0 +1,14 @@
+{
+  "name": "turbo",
+  "display_name": "SD-Turbo Adversarial",
+  "description": "Single-step adversarial diffusion with zero text-encoder drift.",
+  "model_id": "sdxs-512-0.9",
+  "model_filename": "sdxs-512-0.9.q8_0.gguf",
+  "sample_method": "euler_a",
+  "steps": 1,
+  "cfg_scale": 1.0,
+  "width": 512,
+  "height": 512,
+  "vae_tiling": false,
+  "target_latency_sec": 2.2
+}

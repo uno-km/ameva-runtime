@@ -1,0 +1,16 @@
+{
+  "devices": [
+    {
+      "id": "192.168.1.101:5555",
+      "name": "Target Device 1 (TCP)",
+      "type": "tcp",
+      "ssh_user": "termux"
+    },
+    {
+      "id": "DEMO_USB_SERIAL_001",
+      "name": "Target Device 2 (USB)",
+      "type": "usb",
+      "ssh_user": "termux"
+    }
+  ]
+}

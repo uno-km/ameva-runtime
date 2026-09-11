@@ -1,0 +1,33 @@
+#version 450
+
+// ============================================================================
+// AMEVA Runtime - BitNet SwiGLU (SiLU * Up) In-Place Compute Shader
+// Hardware Target: ARM Mali & Qualcomm Adreno
+// Math: data[i] = (data[i] / (1.0 + exp(-data[i]))) * data[n_ffn + i]
+// Binding 2: output_buffer_ where [0..n_ffn-1] is gate, [n_ffn..2*n_ffn-1] is up
+// ============================================================================
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 2) buffer SwiGLUBuffer {
+    float data[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint in_dim;
+    uint out_dim;            // Used as n_ffn
+    float dequant_scale;
+    uint weight_offset_bytes;
+    uint output_offset_words;
+} params;
+
+void main() {
+    uint idx = gl_GlobalInvocationID.x;
+    uint n_ffn = params.out_dim;
+    if (idx < n_ffn) {
+        float g = data[idx];
+        float u = data[n_ffn + idx];
+        float silu = g / (1.0 + exp(-g));
+        data[idx] = silu * u;
+    }
+}

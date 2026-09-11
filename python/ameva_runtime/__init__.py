@@ -1,0 +1,71 @@
+"""
+AMEVA Runtime (Unified Next-Gen On-Device AI Runtime)
+=====================================================
+Multi-backend hardware orchestration (Vulkan, OpenCL, NPU, CPU-NEON)
+for mobile & edge devices.
+"""
+from __future__ import annotations
+
+from .core import (
+    AmevaRuntime,
+    get_runtime,
+    VulkanContext,
+    create_context,
+    get_or_create_context,
+    run,
+    plan,
+    ExecutionResult,
+)
+from .detector import detect_hardware, HardwareProfile
+from .router import SmartRouter, ExecutionPlan, get_router
+from .doctor import Doctor, DiagnosticReport, diagnose
+from .protocol import IRuntimeConsumer, IVulkanConsumer, BindingResult
+from .exceptions import (
+    AmevaRuntimeError,
+    HardwareDetectionError,
+    SubsystemInitError,
+    DriverLockupError,
+    DeviceOOMError,
+    ArchitectureUnsupportedError,
+    InvalidAffinityError,
+)
+from .installer import NativeAssetManager, provision_native_assets
+
+from ._version import __version__
+
+
+__all__ = [
+    "__version__",
+    "AmevaRuntime",
+    "get_runtime",
+    "run",
+    "plan",
+    "ExecutionResult",
+    "VulkanContext",
+    "create_context",
+    "get_or_create_context",
+    "detect_hardware",
+    "HardwareProfile",
+    "SmartRouter",
+    "ExecutionPlan",
+    "get_router",
+    "Doctor",
+    "DiagnosticReport",
+    "diagnose",
+    "IRuntimeConsumer",
+    "IVulkanConsumer",
+    "BindingResult",
+    "NativeAssetManager",
+    "provision_native_assets",
+    "AmevaRuntimeError",
+    "HardwareDetectionError",
+    "SubsystemInitError",
+    "DriverLockupError",
+    "DeviceOOMError",
+    "ArchitectureUnsupportedError",
+    "InvalidAffinityError",
+    "vulkan",
+]
+
+from . import vulkan
+

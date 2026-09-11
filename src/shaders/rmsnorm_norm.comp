@@ -1,0 +1,79 @@
+#version 450
+
+// ============================================================================
+// AMEVA Runtime - Residual to Activation RMSNorm Compute Shader
+// Hardware Target: ARM Mali & Qualcomm Adreno
+// Math: out_data[i] = (in_data[i] / sqrt(mean(in_data^2) + eps)) * gamma[i]
+// Binding 0: GammaBuffer (resident model weights)
+// Binding 1: OutputBuffer (activation_buffer_ write-only)
+// Binding 4: InputBuffer (residual_buffer_ read-only)
+// Workgroup: local_size_x = 256
+// ============================================================================
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) readonly buffer GammaBuffer {
+    float gamma[];
+};
+
+layout(std430, binding = 1) writeonly buffer OutputBuffer {
+    float out_data[];
+};
+
+layout(std430, binding = 4) readonly buffer InputBuffer {
+    float in_data[];
+};
+
+layout(push_constant) uniform PushConstants {
+    uint in_dim;             // unused
+    uint out_dim;            // n_dim (2560)
+    float dequant_scale;     // eps (e.g. 1e-5)
+    uint weight_offset_bytes;// gamma byte offset in weight_buffer_
+    uint output_offset_words;// unused
+} params;
+
+shared float shared_sum_sq[256];
+shared float shared_inv_rms;
+
+void main() {
+    uint tid = gl_LocalInvocationID.x;
+    uint n_dim = params.out_dim;
+    float eps = params.dequant_scale;
+    uint gamma_offset = params.weight_offset_bytes / 4u;
+
+    float thread_sum = 0.0;
+    for (uint i = tid; i < n_dim; i += 256u) {
+        float val = in_data[i];
+        thread_sum += val * val;
+    }
+    shared_sum_sq[tid] = thread_sum;
+    barrier();
+
+    // Parallel tree reduction (256 -> 1)
+    if (tid < 128u) shared_sum_sq[tid] += shared_sum_sq[tid + 128u];
+    barrier();
+    if (tid < 64u)  shared_sum_sq[tid] += shared_sum_sq[tid + 64u];
+    barrier();
+    if (tid < 32u)  shared_sum_sq[tid] += shared_sum_sq[tid + 32u];
+    barrier();
+    if (tid < 16u)  shared_sum_sq[tid] += shared_sum_sq[tid + 16u];
+    barrier();
+    if (tid < 8u)   shared_sum_sq[tid] += shared_sum_sq[tid + 8u];
+    barrier();
+    if (tid < 4u)   shared_sum_sq[tid] += shared_sum_sq[tid + 4u];
+    barrier();
+    if (tid < 2u)   shared_sum_sq[tid] += shared_sum_sq[tid + 2u];
+    barrier();
+
+    if (tid == 0u) {
+        float sum_sq = shared_sum_sq[0] + shared_sum_sq[1];
+        float mean_sq = sum_sq / float(n_dim);
+        shared_inv_rms = 1.0 / sqrt(mean_sq + eps);
+    }
+    barrier();
+
+    float inv_rms = shared_inv_rms;
+    for (uint i = tid; i < n_dim; i += 256u) {
+        out_data[i] = in_data[i] * inv_rms * gamma[gamma_offset + i];
+    }
+}
