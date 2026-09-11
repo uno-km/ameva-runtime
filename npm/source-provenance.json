@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": "@ameva/runtime",
-  "version": "2.6.0-alpha.2",
+  "version": "2.6.0-alpha.3",
   "components": [
     {
       "component": "Node.js Node-API",

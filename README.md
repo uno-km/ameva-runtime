@@ -9,7 +9,7 @@
 ---
 
 ## Distribution & Versioning SSOT
-- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.2` (Controlled Subprocess Execution & Native Doctor Probing)
+- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.3` (Controlled Subprocess Execution & Native Doctor Probing)
 - **Python Package**: `ameva-runtime 2.5.0`
 - **Native Vulkan HAL ABI**: `1.2.0` (C ABI Bridge Version 1)
 

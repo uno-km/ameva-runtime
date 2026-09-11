@@ -3,8 +3,21 @@
 All notable changes and milestones for `ameva-runtime` will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and Apache-2.0 governance.
 
-## [v2.6.0-alpha.2] - 2026-09-10
-### Security Hardening & Supply Chain Verification Release
+## [v2.6.0-alpha.3] - 2026-09-10
+### Archive Defense Completion & Resource Limits Hardening
+
+#### Version Architecture SSOT
+- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.3` (maintains monotonic SemVer progression from published v2.5.0)
+- **Python Distribution**: `2.5.0` (independent distribution baseline)
+- **Node-API Bridge ABI**: Version 1
+- **Native Vulkan HAL ABI**: Version 1.2.0
+
+#### Security & Integrity Patches
+- **P0 Archive Resource Limits & Special Member Guards**: Hardened `safe_extract_tar()` in `python/ameva_runtime/installer.py`. Strictly allows only regular files and directories, rejecting FIFO (`FIFOTYPE`), character devices (`CHRTYPE`), block devices (`BLKTYPE`), and special members. Rejects duplicate member paths with Windows case-folding normalization.
+- **Resource Exhaustion Bounds**: Enforced strict boundary caps: `MAX_ARCHIVE_FILE_COUNT=1000`, `MAX_ARCHIVE_SINGLE_FILE_SIZE=250MB`, `MAX_ARCHIVE_TOTAL_EXPANDED_SIZE=500MB`, `MAX_ARCHIVE_PATH_DEPTH=16`. Validated via 8-gate exact boundary unit tests (23/23 security tests PASS).
+
+## [v2.6.0-alpha.2] - 2026-09-10 (RETIRED_PRE_RC)
+### Security Hardening & Supply Chain Verification Release (Superseded by v2.6.0-alpha.3)
 
 #### Version Architecture SSOT
 - **Node.js Package**: `@ameva/runtime v2.6.0-alpha.2` (maintains monotonic SemVer progression from published v2.5.0)
