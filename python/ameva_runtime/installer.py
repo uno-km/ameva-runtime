@@ -52,24 +52,105 @@ AMEVA_SHADERS = AMEVA_SHARE / "shaders"
 AMEVA_MODELS = HOME / ".cache" / "ameva" / "models"
 
 
-def safe_extract_tar(archive_path: Path, target_dir: Path) -> None:
-    """Safely extracts a tar.gz archive ensuring no member escapes target_dir
-    and rejecting any symbolic links or hard links (P0 Archive Traversal defense).
+MAX_ARCHIVE_FILE_COUNT = 1000
+MAX_ARCHIVE_SINGLE_FILE_SIZE = 250 * 1024 * 1024  # 250 MB
+MAX_ARCHIVE_TOTAL_EXPANDED_SIZE = 500 * 1024 * 1024  # 500 MB
+MAX_ARCHIVE_PATH_DEPTH = 16
+
+
+def safe_extract_tar(
+    archive_path: Path,
+    target_dir: Path,
+    max_file_count: int = MAX_ARCHIVE_FILE_COUNT,
+    max_single_file_size: int = MAX_ARCHIVE_SINGLE_FILE_SIZE,
+    max_total_size: int = MAX_ARCHIVE_TOTAL_EXPANDED_SIZE,
+    max_path_depth: int = MAX_ARCHIVE_PATH_DEPTH,
+) -> None:
+    """Safely extracts a tar.gz archive ensuring no member escapes target_dir,
+    strictly permitting only regular files and directories, rejecting special members/links,
+    normalizing paths with case-folding on Windows, rejecting negative sizes,
+    and enforcing member count, file size, total expanded size, and path depth limits.
+    All members are pre-validated before any file extraction begins.
     """
+    if target_dir.is_symlink():
+        raise RuntimeError(f"Target directory cannot be a symbolic link: {target_dir}")
+
     root = target_dir.resolve()
+    seen_paths = set()
+    total_expanded_size = 0
+    member_count = 0
+
     with tarfile.open(archive_path, "r:gz") as tar:
         for member in tar.getmembers():
+            member_count += 1
+            if member_count > max_file_count:
+                raise RuntimeError(
+                    f"MAX_FILE_COUNT_ENFORCED: archive member count ({member_count}) exceeds limit ({max_file_count})"
+                )
+
+            # Strictly allow only regular files and directories
             if member.islnk() or member.issym():
                 raise RuntimeError(
                     f"Archive links are not permitted: {member.name}"
                 )
+            if member.isfifo():
+                raise RuntimeError(
+                    f"FIFO_REJECTED: FIFO special member rejected: {member.name}"
+                )
+            if member.ischr():
+                raise RuntimeError(
+                    f"CHAR_DEVICE_REJECTED: character device special member rejected: {member.name}"
+                )
+            if member.isblk():
+                raise RuntimeError(
+                    f"BLOCK_DEVICE_REJECTED: block device special member rejected: {member.name}"
+                )
+            if not (member.isdir() or member.isreg()):
+                raise RuntimeError(
+                    f"SPECIAL_MEMBER_REJECTED: unsupported archive member type: {member.name}"
+                )
+
+            # Prevent negative or invalid integer sizes
+            if member.size < 0 or member.size > 2**63 - 1:
+                raise RuntimeError(
+                    f"INVALID_MEMBER_SIZE: member {member.name} has invalid size {member.size}"
+                )
+
             destination = (root / member.name).resolve()
             try:
-                destination.relative_to(root)
+                rel = destination.relative_to(root)
             except ValueError as exc:
                 raise RuntimeError(
                     f"Archive path escapes target directory: {member.name}"
                 ) from exc
+
+            depth = len(rel.parts)
+            if depth > max_path_depth:
+                raise RuntimeError(
+                    f"MAX_PATH_DEPTH_ENFORCED: path depth {depth} exceeds limit {max_path_depth}: {member.name}"
+                )
+
+            # POSIX as_posix() normalization + case-insensitivity on Windows
+            posix_path = rel.as_posix()
+            norm_rel = posix_path.lower() if sys.platform == "win32" else posix_path
+            if norm_rel in seen_paths:
+                raise RuntimeError(
+                    f"DUPLICATE_PATH_REJECTED: duplicate path detected in archive: {member.name}"
+                )
+            seen_paths.add(norm_rel)
+
+            if member.isreg():
+                if member.size > max_single_file_size:
+                    raise RuntimeError(
+                        f"MAX_SINGLE_FILE_SIZE_ENFORCED: member {member.name} size ({member.size} bytes) exceeds limit ({max_single_file_size} bytes)"
+                    )
+                total_expanded_size += member.size
+                if total_expanded_size > max_total_size:
+                    raise RuntimeError(
+                        f"MAX_TOTAL_EXPANDED_SIZE_ENFORCED: total expanded size ({total_expanded_size} bytes) exceeds limit ({max_total_size} bytes)"
+                    )
+
+        # Atomic pre-validation complete: extract only after all checks pass
         tar.extractall(target_dir)
 
 
