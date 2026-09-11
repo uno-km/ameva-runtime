@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { executeSubprocess, validateExecutable } = require('./lib/subprocess');
 const { LlamaCppExecutionPlan } = require('./lib/adapters');
 

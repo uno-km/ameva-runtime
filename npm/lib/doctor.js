@@ -73,6 +73,41 @@ class Doctor {
 
     // Delegate directly to Native C ABI Doctor
     const diag = await nativeBridge.runDiagnostic({ verbose });
+
+    // Extract native device fingerprint if written by C++ HAL
+    let nativeFp = null;
+    if (fs.existsSync(this.statePath)) {
+      try {
+        const raw = JSON.parse(fs.readFileSync(this.statePath, 'utf-8'));
+        if (raw && raw.deviceFingerprint) {
+          nativeFp = raw.deviceFingerprint;
+        }
+      } catch (_) {}
+    }
+
+    const deviceName = diag.deviceName || (nativeFp && nativeFp.deviceName) || "Unknown";
+    let vendorId = (nativeFp && nativeFp.vendorId) || 0;
+    let deviceId = (nativeFp && nativeFp.deviceId !== undefined) ? nativeFp.deviceId : 0;
+
+    if (!vendorId && typeof deviceName === 'string') {
+      const lower = deviceName.toLowerCase();
+      if (lower.includes('adreno') || lower.includes('qualcomm')) {
+        vendorId = 0x5143;
+      } else if (lower.includes('mali') || lower.includes('arm')) {
+        vendorId = 0x13B5;
+      } else if (lower.includes('xclipse') || lower.includes('samsung')) {
+        vendorId = 0x144D;
+      }
+    }
+
+    const deviceFingerprint = nativeFp || {
+      deviceName,
+      vendorId,
+      deviceId,
+      driverVersion: diag.driverVersion || "Unknown",
+      loaderPath: diag.loaderPath || findVulkanLib() || "/system/lib64/libvulkan.so"
+    };
+
     const report = {
       schemaVersion: 2,
       overallSuccess: Boolean(diag.overallSuccess),
@@ -83,7 +118,7 @@ class Doctor {
       capabilityStatus: diag.computeCertified ? "COMPUTE_CERTIFIED" : "COMPUTE_UNVERIFIED",
       verificationSource: "native_c_hal",
       verifiedAt: new Date().toISOString(),
-      deviceName: diag.deviceName || "Unknown",
+      deviceName,
       driverVersion: diag.driverVersion || "Unknown",
       loaderPath: diag.loaderPath || "Unknown",
       passedStages: diag.passedStages,
@@ -91,6 +126,13 @@ class Doctor {
       totalElapsedMs: diag.totalElapsedMs,
       recommendedBackend: diag.recommendedBackend,
       exitCode: diag.exitCode,
+      deviceFingerprint,
+      vendorId: deviceFingerprint.vendorId,
+      deviceId: deviceFingerprint.deviceId,
+      validation: {
+        passedStages: diag.passedStages,
+        totalStages: diag.totalStages
+      },
       stages: []
     };
     if (report.overallSuccess && report.computeCertified) {
@@ -107,13 +149,77 @@ class Doctor {
       if (process.platform !== 'win32') {
         try { fs.chmodSync(parentDir, 0o700); } catch (_) {}
       }
+
+      let existingFp = null;
       if (fs.existsSync(this.statePath)) {
         const lstat = fs.lstatSync(this.statePath);
         if (lstat.isSymbolicLink()) {
           fs.unlinkSync(this.statePath);
+        } else {
+          try {
+            const raw = JSON.parse(fs.readFileSync(this.statePath, 'utf-8'));
+            if (raw && raw.deviceFingerprint) {
+              existingFp = raw.deviceFingerprint;
+            }
+          } catch (_) {}
         }
       }
-      const dataStr = JSON.stringify(report, null, 2);
+
+      const deviceName = report.deviceName || (existingFp && existingFp.deviceName) || "Unknown";
+      let vendorId = report.vendorId || (existingFp && existingFp.vendorId) || 0;
+      let deviceId = report.deviceId !== undefined ? report.deviceId : (existingFp && existingFp.deviceId !== undefined ? existingFp.deviceId : 0);
+
+      if (!vendorId && typeof deviceName === 'string') {
+        const lower = deviceName.toLowerCase();
+        if (lower.includes('adreno') || lower.includes('qualcomm')) {
+          vendorId = 0x5143;
+        } else if (lower.includes('mali') || lower.includes('arm')) {
+          vendorId = 0x13B5;
+        } else if (lower.includes('xclipse') || lower.includes('samsung')) {
+          vendorId = 0x144D;
+        }
+      }
+
+      const fp = report.deviceFingerprint || existingFp || {
+        deviceName,
+        vendorId,
+        deviceId,
+        driverVersion: report.driverVersion || "Unknown",
+        loaderPath: report.loaderPath || findVulkanLib() || "/system/lib64/libvulkan.so"
+      };
+
+      if (!fp.vendorId && vendorId) fp.vendorId = vendorId;
+      if (fp.deviceId === undefined) fp.deviceId = deviceId;
+
+      const dataToSave = {
+        schemaVersion: 2,
+        overallSuccess: Boolean(report.overallSuccess),
+        diagnosticScope: report.diagnosticScope || "compute",
+        scopeSuccess: report.scopeSuccess !== undefined ? Boolean(report.scopeSuccess) : Boolean(report.overallSuccess),
+        computeCertified: Boolean(report.computeCertified),
+        modelCertified: Boolean(report.modelCertified),
+        capabilityStatus: report.capabilityStatus || (report.computeCertified ? "COMPUTE_CERTIFIED" : "COMPUTE_UNVERIFIED"),
+        verificationSource: report.verificationSource || "native_c_hal",
+        verifiedAt: report.verifiedAt || new Date().toISOString(),
+        deviceName: fp.deviceName,
+        driverVersion: fp.driverVersion || report.driverVersion || "Unknown",
+        loaderPath: fp.loaderPath || report.loaderPath || "Unknown",
+        deviceFingerprint: fp,
+        vendorId: fp.vendorId,
+        deviceId: fp.deviceId,
+        validation: report.validation || {
+          passedStages: report.passedStages || 0,
+          totalStages: report.totalStages || 12
+        },
+        passedStages: report.passedStages || 0,
+        totalStages: report.totalStages || 12,
+        totalElapsedMs: report.totalElapsedMs || 0,
+        recommendedBackend: report.recommendedBackend || "vulkan",
+        exitCode: report.exitCode !== undefined ? report.exitCode : 0,
+        stages: report.stages || []
+      };
+
+      const dataStr = JSON.stringify(dataToSave, null, 2);
       fs.writeFileSync(this.statePath, dataStr, { encoding: 'utf-8', mode: 0o600 });
       if (process.platform !== 'win32') {
         try { fs.chmodSync(this.statePath, 0o600); } catch (_) {}
