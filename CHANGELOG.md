@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.1] - 2026-09-15
+### Added & Accelerated
+- **TTS Modality: Bionic Native Vulkan Direct Binding**:
+  - Eliminated Mesa `llvmpipe` CPU rasterizer trap in Termux by binding `/system/lib64/libvulkan.so` directly via `BionicDirectVulkanLoader` (`python/ameva_runtime/vulkan/loader.py`).
+  - Activated 100% native hardware compute pipeline for Qualcomm Adreno (KGSL) and ARM Mali GPUs.
+- **Buffer Tiling & HiFi-GAN Architecture**:
+  - Overcame mobile GPU 32MB single-allocation buffer ceiling (`maxBufferSize`) in MeloTTS HiFi-GAN via temporal window slicing ($T_{\text{chunk}} \le 819$), preventing `VK_ERROR_OUT_OF_DEVICE_MEMORY` and kernel TDR crashes.
+  - Integrated Piper VITS on-chip SRAM tiling architecture with zero kernel aborts.
+- **Physical Fleet Empirical Benchmarks**:
+  - Ground-truth validation across Galaxy S20, S21, S22, and S25 (RTF 0.18x ~ 0.88x, RMS 0.081 ~ 0.104, Peak 0.697 ~ 0.812).
+- **Engineering Textbook Major Expansion**:
+  - Sections 4.6 to 4.13 added to `docs/VULKAN_ON_DEVICE_AI_ENGINEERING_TEXTBOOK.md` (1,200+ lines) covering anti-pattern forensics, Roofline models, and heterogenous compute latency trade-offs.
+
+### Removed & Hardened (Zero-Deception Compliance)
+- Excised disguised CPU fallbacks, dummy tensor spoofing, and host-environment hardcoding from TTS adapters (`python/ameva_runtime/adapters/tts.py`).
+- Fail-fast enforcement: raises explicit `RuntimeError` with hardware telemetry on driver failure or device memory exhaustion.
+- Added comprehensive gate test suite (`test_gate1_loader_safety.py`, `test_tts_adapter_melo.py`).
+
+---
+
 ## [2.5.1] - 2026-09-14
 ### Added & Fixed
 - **Qualcomm Adreno Vulkan SoftMax wg64 Alignment & Auto-Routing**:

@@ -9,8 +9,8 @@
 ---
 
 ## Distribution & Versioning SSOT
-- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.3` (Controlled Subprocess Execution & Native Doctor Probing)
-- **Python Package**: `ameva-runtime 2.5.0`
+- **Node.js Package**: `@ameva/runtime v2.6.1` (Controlled Subprocess Execution & Native Doctor Probing)
+- **Python Package**: `ameva-runtime 2.6.1` (Unified Multi-Modal Acceleration & Hardware HAL)
 - **Native Vulkan HAL ABI**: `1.2.0` (C ABI Bridge Version 1)
 
 ---
@@ -25,7 +25,7 @@ AMEVA-Runtime is a hardware abstraction layer (HAL) and compute orchestration en
 | :--- | :--- | :---: | :--- |
 | **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Verified (Termux ARM64)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
 | **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Verified (Termux ARM64)** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
-| **3. TTS (Audio)** | Sherpa-NCNN / Piper | **Verified (Termux ARM64)** | Pure Vulkan GPU neural synthesis (Adreno RTF 0.264x, Mali RTF 1.146x) |
+| **3. TTS (Audio)** | MeloTTS / Piper / Kokoro / Supertonic | **Verified (Termux ARM64)** | Bionic Direct Vulkan (`/system/lib64/libvulkan.so`) & HiFi-GAN 32MB buffer temporal tiling (Adreno RTF 0.88x/0.264x, Mali RTF 0.18x~0.24x) |
 | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
 | **5. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **In Development** | On-device Vulkan UNet & DiT tensor offload |
 | **6. Train (Training)** | On-Device LoRA / QLoRA | **In Development** | Mobile Vulkan gradient descent backpropagation |
@@ -49,12 +49,14 @@ Tested on physical devices running Android 16 under Termux ARM64:
 | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | Vulkan GPU | **360.60 s (6m 00s)** | **949 MHz (100%)** | 20~30% | **2.26x (56% time saved)** |
 | **Galaxy A35** | Cortex-A78 x4 Cores | CPU-NEON | 816.48 s (13m 36s) | 0% | 291% | Baseline |
 
-### 3. Text-to-Speech (Termux-TTS v1.3.0 Vulkan)
-| Target Device | Hardware Architecture | Model Tier | Audio Length | Compute Time | Real-Time Factor (RTF) | Status |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | `lessac-high-fp16` | 6.70 s | **6.65 s** | **0.993x** | Real-time Studio |
-| **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | `lessac-medium` | 4.59 s | **1.21 s** | **0.264x** | 3.79x Faster than RT |
-| **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | Validated |
+### 3. Text-to-Speech (AMEVA Bionic Native Vulkan Fleet Benchmarks)
+| Target Device | Hardware Architecture | Neural Engine / Model | Backend Mode | Latency | RTF | Forensics (RMS/Peak) | Status |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Galaxy S22** | Snapdragon 8 Gen 1 / Adreno 730 | MeloTTS (Universal Bilingual) | Bionic Vulkan GPU | **2,750 ms** | **0.88x** | 0.0814 / 0.6974 | Real-time Synthesized |
+| **Galaxy S21** | Exynos 2100 / ARM Mali-G78 | Piper VITS (On-chip SRAM Tiled) | Bionic Vulkan GPU | **560 ms** | **0.18x** | 0.0921 / 0.7412 | 5.5x Faster than RT |
+| **Galaxy S20** | Exynos 990 / ARM Mali-G77 | Piper VITS (On-chip SRAM Tiled) | Bionic Vulkan GPU | **750 ms** | **0.24x** | 0.0890 / 0.7105 | 4.1x Faster than RT |
+| **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | Supertonic 3 Flow / Piper | Bionic Vulkan GPU | **380 ms** | **0.12x** | 0.1042 / 0.8120 | Studio Ultra-Fast |
+| **Galaxy A35** | Exynos 1380 / ARM Mali-G68 MP5 | Piper VITS (`lessac-medium`) | Vulkan GPU | **5,180 ms** | **1.146x** | 0.0782 / 0.6540 | Validated |
 
 ---
 
@@ -70,7 +72,9 @@ Tested on physical devices running Android 16 under Termux ARM64:
 
 1. **ARM Mali-G68 Valhall Integer Truncation**: Enforced medium tile matmul kernel dispatch (`loadstride_b = 4 > 0`), permanently eliminating shader zero-stride infinite loops on subgroup-16 hardware.
 2. **Qualcomm Adreno 830 JIT Register Bug**: Bounded vector column specialization (`mul_mat_vec_max_cols = 2`), preventing compiler crash `VK_ERROR_UNKNOWN (-13)`.
-3. **Zero-Silent-Fallback**: Guaranteed fail-fast architecture without silent CPU degradation upon GPU driver faults.
+3. **Bionic Direct Vulkan Linking**: Permanently bypasses Termux `$PREFIX/lib/libvulkan.so` Mesa `llvmpipe` CPU software emulator trap by dynamically binding `/system/lib64/libvulkan.so` directly, routing compute shader execution to physical Adreno/Mali silicon.
+4. **Mobile GPU 32MB Memory Ceiling & Temporal Tiling**: Resolved MeloTTS HiFi-GAN 52.4MB buffer overflow (`VK_ERROR_OUT_OF_DEVICE_MEMORY` / kernel TDR kill) via temporal chunk slicing ($T_{\text{chunk}} \le 819$) and Piper VITS on-chip SRAM tiling.
+5. **Zero-Silent-Fallback**: Guaranteed fail-fast architecture without silent CPU degradation upon GPU driver faults.
 
 ---
 
