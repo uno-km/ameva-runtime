@@ -9,7 +9,7 @@
 #define DLCLOSE(handle) FreeLibrary((HMODULE)handle)
 #else
 #include <dlfcn.h>
-#define DLOPEN(path) dlopen(path, RTLD_LAZY | RTLD_LOCAL)
+#define DLOPEN(path) dlopen(path, RTLD_NOW | RTLD_LOCAL)
 #define DLSYM(handle, name) dlsym(handle, name)
 #define DLCLOSE(handle) dlclose(handle)
 #endif
@@ -34,21 +34,16 @@ bool VulkanLoader::Load(const std::string& explicit_path) {
     }
 
 #if defined(__ANDROID__)
-    // Android Bionic System Vendor Driver Priority (Comprehensive Multi-Vendor Chain)
-    search_candidates.push_back("/system/lib64/libvulkan.so");
-    search_candidates.push_back("/vendor/lib64/hw/vulkan.adreno.so");
-    search_candidates.push_back("/vendor/lib64/egl/libGLES_mali.so");
-    search_candidates.push_back("/vendor/lib64/libvulkan.so");
-    search_candidates.push_back("/system/lib/libvulkan.so");
-    search_candidates.push_back("/vendor/lib/libvulkan.so");
+    // Android Bionic System Loader Priority (Gate 1 Standard: loader name first, then platform paths)
     search_candidates.push_back("libvulkan.so");
+    search_candidates.push_back("/system/lib64/libvulkan.so");
+    search_candidates.push_back("/system/lib/libvulkan.so");
 #elif defined(_WIN32)
     search_candidates.push_back("vulkan-1.dll");
 #else
-    search_candidates.push_back("/system/lib64/libvulkan.so");
-    search_candidates.push_back("/vendor/lib64/libvulkan.so");
-    search_candidates.push_back("libvulkan.so.1");
     search_candidates.push_back("libvulkan.so");
+    search_candidates.push_back("libvulkan.so.1");
+    search_candidates.push_back("/system/lib64/libvulkan.so");
 #endif
 
     for (const auto& path : search_candidates) {

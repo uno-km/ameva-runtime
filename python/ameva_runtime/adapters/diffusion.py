@@ -15,6 +15,7 @@ from .base import (
     DiagnosticReport,
     BindingResult,
     resolve_diagnostic_report,
+    get_vulkan_env,
     BaseAdapter,
 )
 from ..exceptions import AmevaRuntimeError
@@ -149,11 +150,12 @@ class DiffusionAdapter(BaseAdapter):
     @classmethod
     def get_execution_env(cls, extra_env: Optional[dict[str, str]] = None) -> dict[str, str]:
         """Assemble environment variables including LD_PRELOAD shim for mobile Vulkan HAL."""
-        env = dict(os.environ)
+        base_env = dict(os.environ)
+        if extra_env:
+            base_env.update(extra_env)
+        env = get_vulkan_env(base_env)
         # Essential bypass for Qualcomm Adreno & mobile Vulkan debug CPU check overhead
         env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
-        if extra_env:
-            env.update(extra_env)
 
         shim_path = cls.resolve_shim_path()
         if shim_path:

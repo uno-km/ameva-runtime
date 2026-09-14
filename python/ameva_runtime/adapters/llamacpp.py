@@ -15,6 +15,7 @@ from .base import (
     DiagnosticReport,
     BindingResult,
     resolve_diagnostic_report,
+    get_vulkan_env,
     BaseAdapter,
 )
 from ..exceptions import AmevaRuntimeError
@@ -52,6 +53,16 @@ class LlamaCppAdapter(BaseAdapter):
 
     module_name = "termux-llamacpp"
 
+    @classmethod
+    def get_execution_environment(
+        cls,
+        base_env: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Provides verified execution environment adhering to Golden Link Order."""
+        env = get_vulkan_env(base_env)
+        env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
+        return env
+
     @staticmethod
     def bind(
         engine: Any = None,
@@ -83,13 +94,9 @@ class LlamaCppAdapter(BaseAdapter):
             big_cores = max(1, cpu_cores // 2)
             ngl = _calculate_llama_layers(engine)
             is_mali = (report.vendor_id == _MALI_VENDOR_ID or "Mali" in (report.device_name or ""))
-            # Prioritize Android Bionic System Vulkan ICD over Termux Mesa
-            if is_mali or os.path.exists("/system/lib64/libvulkan.so"):
-                current_ld = os.environ.get("LD_LIBRARY_PATH", "")
-                if not current_ld.startswith("/system/lib64"):
-                    os.environ["LD_LIBRARY_PATH"] = f"/system/lib64:{current_ld}".rstrip(":")
+            if is_mali or (report and report.is_hardware_vulkan()):
                 config["system_icd_prioritized"] = True
-                config["bridge_active"] = True
+                config["bridge_active"] = False
 
             config.update({
                 "backend": "vulkan",

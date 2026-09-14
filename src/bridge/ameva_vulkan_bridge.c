@@ -6,11 +6,17 @@
 static void* get_sys_vulkan() {
     static void* handle = NULL;
     if (!handle) {
-        handle = dlopen("/system/lib64/libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+        handle = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
         if (!handle) {
-            fprintf(stderr, "[AmevaVulkanBridge] dlopen(/system/lib64/libvulkan.so) failed: %s\n", dlerror());
+            handle = dlopen("/system/lib64/libvulkan.so", RTLD_NOW | RTLD_LOCAL);
+        }
+        if (!handle) {
+            handle = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
+        }
+        if (!handle) {
+            fprintf(stderr, "[AmevaVulkanBridge] dlopen(libvulkan.so) failed: %s\n", dlerror());
         } else {
-            fprintf(stderr, "[AmevaVulkanBridge] Bound to /system/lib64/libvulkan.so (Hardware ICD Active)\n");
+            fprintf(stderr, "[AmevaVulkanBridge] Bound to system Vulkan loader (Hardware ICD Active)\n");
         }
     }
     return handle;

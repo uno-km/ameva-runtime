@@ -16,6 +16,7 @@ from .base import (
     check_vulkan_availability_or_raise,
     _MALI_VENDOR_ID,
     resolve_diagnostic_report,
+    get_vulkan_env,
     BaseAdapter,
 )
 
@@ -45,6 +46,16 @@ class BitnetAdapter(BaseAdapter):
     """termux-bitnet (BitNet 1.58-bit i2_s) Vulkan acceleration adapter."""
 
     module_name = "termux-bitnet"
+
+    @classmethod
+    def get_execution_environment(
+        cls,
+        base_env: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Provides verified BitNet execution environment conforming to Golden Link Order."""
+        env = get_vulkan_env(base_env)
+        env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
+        return env
 
     @staticmethod
     def bind(

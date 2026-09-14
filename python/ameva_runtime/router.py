@@ -114,12 +114,6 @@ class SmartRouter:
             ngl = requested_ngl if requested_ngl is not None else 99
             threads = self.profile.recommended_threads
 
-            # Ensure system Vulkan driver takes precedence over Mesa software rasterizer on Android
-            if os.path.exists("/system/lib64/libvulkan.so"):
-                current_ld = os.environ.get("LD_LIBRARY_PATH", "")
-                if not current_ld.startswith("/system/lib64"):
-                    env["LD_LIBRARY_PATH"] = f"/system/lib64:{current_ld}".rstrip(":")
-
             if self.profile.gpu_family == "mali":
                 env["GGML_VK_DISABLE_F16"] = "1"
                 env["GGML_VK_FORCE_MEDIUM_MATMUL"] = "1"
@@ -183,10 +177,6 @@ class SmartRouter:
 
         if backend == "vulkan":
             is_gpu = True
-            if os.path.exists("/system/lib64/libvulkan.so"):
-                current_ld = os.environ.get("LD_LIBRARY_PATH", "")
-                if not current_ld.startswith("/system/lib64"):
-                    env["LD_LIBRARY_PATH"] = f"/system/lib64:{current_ld}".rstrip(":")
 
             if self.profile.gpu_family == "mali":
                 env["GGML_VK_DISABLE_F16"] = "1"
@@ -247,10 +237,6 @@ class SmartRouter:
         if backend in ("vulkan", "gpu"):
             backend = "vulkan"
             is_gpu = True
-            if os.path.exists("/system/lib64/libvulkan.so"):
-                current_ld = os.environ.get("LD_LIBRARY_PATH", "")
-                if not current_ld.startswith("/system/lib64"):
-                    env["LD_LIBRARY_PATH"] = f"/system/lib64:{current_ld}".rstrip(":")
 
             if self.profile.gpu_family == "mali":
                 env["AMEVA_VK_DSP_ACCEL"] = "1"

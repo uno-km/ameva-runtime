@@ -234,14 +234,21 @@ def detect_soc_environment() -> SoCInfo:
             "Direct KGSL/Turnip Vulkan CLI hardware acceleration enabled."
         )
     elif gpu_family == "mali" and termux_env:
-        # ARM Mali는 CLI 세션에서 Surface/Window 컨텍스트가 없으므로 vkEnumeratePhysicalDevices 실패 확정
-        can_direct_vulkan_cli = False
-        recommended_backend = "cpu_neon"
-        diagnosis_reason = (
-            f"{vendor.upper()} Mali GPU detected in Termux CLI. "
-            "Headless Vulkan instance creation is restricted by driver/OS. "
-            f"Routing directly to ARM NEON pure CPU engine ({cpu_model}) (Zero-Silent-Fallback)."
-        )
+        has_vulkan_icd = os.path.exists("/system/lib64/libvulkan.so") or os.path.exists("/vendor/lib64/libvulkan.so")
+        if has_vulkan_icd:
+            can_direct_vulkan_cli = True
+            recommended_backend = "vulkan"
+            diagnosis_reason = (
+                f"{vendor.upper()} Mali GPU detected with Android Vulkan ICD. "
+                "Direct Vulkan CLI hardware acceleration enabled."
+            )
+        else:
+            can_direct_vulkan_cli = False
+            recommended_backend = "cpu_neon"
+            diagnosis_reason = (
+                f"{vendor.upper()} Mali GPU detected in Termux CLI but Android Vulkan ICD missing. "
+                f"Routing directly to ARM NEON pure CPU engine ({cpu_model}) (Zero-Silent-Fallback)."
+            )
     elif termux_env:
         can_direct_vulkan_cli = False
         recommended_backend = "cpu_neon"

@@ -17,6 +17,7 @@ from .exceptions import (
     BufferAllocationError,
     PipelineCreationError,
 )
+from .loader import VulkanDynamicLoader, VulkanDispatchTable
 from .adapters import (
     SttAdapter,
     DiffusionAdapter,
@@ -40,6 +41,8 @@ def get_device_name() -> str | None:
 __all__ = [
     "get_device_name",
     "VulkanContext",
+    "VulkanDynamicLoader",
+    "VulkanDispatchTable",
     "create_context",
     "get_or_create_context",
     "Doctor",

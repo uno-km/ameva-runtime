@@ -104,7 +104,6 @@ def resolve_inference_environment(plan: ExecutionPlan, binary_path: str) -> Dict
     real_bin = os.path.realpath(binary_path)
     bin_dir = os.path.dirname(real_bin)
     candidate_dirs = [
-        "/system/lib64",
         os.path.abspath(os.path.join(bin_dir, "..", "ggml", "src")),
         os.path.abspath(os.path.join(bin_dir, "..", "src")),
         bin_dir,

@@ -191,11 +191,10 @@ def find_system_vulkan_driver_dir() -> Optional[str]:
 def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
     """
     Returns environment variable dictionary for the AMEVA Vulkan runtime.
-    Golden Link Order:
-    1: System Vulkan driver directory (/system/lib64)
-    2: Termux native C++ runtime (/data/data/com.termux/files/usr/lib)
-    3: Bundled runtime library (~/.termux-llama/current/lib)
-    4: Existing system and user environment paths
+    Gate 1 Compliance:
+    - Never injects /system/lib64, /vendor/lib64, /apex/... or Central Bridge symlinks into LD_LIBRARY_PATH.
+    - Preserves user environment and existing LD_LIBRARY_PATH entries without arbitrary deletion or reordering.
+    - Adds only isolated engine runtime library directories if present.
     """
     import os
     from pathlib import Path
@@ -203,45 +202,41 @@ def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
     env = dict(base_env or os.environ)
     current_ld = env.get("LD_LIBRARY_PATH", "")
 
-    # Dynamically probe verified Vulkan driver directory
-    discovered_driver_dir = find_system_vulkan_driver_dir()
-
-    ordered_dirs = []
-
-    # Priority 1: Smartphone system Vulkan driver directory (/system/lib64)
-    # Prevents Android 15 Bionic libunwindstack symbol collision (system liblzma binds first)
-    if discovered_driver_dir and discovered_driver_dir not in ordered_dirs:
-        ordered_dirs.append(discovered_driver_dir)
-    elif os.path.isdir("/system/lib64") and "/system/lib64" not in ordered_dirs:
-        ordered_dirs.append("/system/lib64")
-
-    # Priority 2: Termux native C++ runtime
-    termux_usr_lib = "/data/data/com.termux/files/usr/lib"
-    if os.path.isdir(termux_usr_lib) and termux_usr_lib not in ordered_dirs:
-        ordered_dirs.append(termux_usr_lib)
-
-    # Priority 3: AMEVA isolated engine runtime libraries
     home = Path.home()
+    engine_dirs = []
+
+    # AMEVA isolated engine runtime libraries (only existing directories)
     for engine_name in ("stt", "diffusion", "tts"):
-        eng_lib = str(home / ".local/share/ameva/current" / engine_name / "lib")
-        if os.path.isdir(eng_lib) and eng_lib not in ordered_dirs:
-            ordered_dirs.append(eng_lib)
-        eng_root = str(home / ".local/share/ameva/current" / engine_name)
-        if os.path.isdir(eng_root) and eng_root not in ordered_dirs:
-            ordered_dirs.append(eng_root)
+        eng_lib = home / ".local" / "share" / "ameva" / "current" / engine_name / "lib"
+        if eng_lib.is_dir():
+            engine_dirs.append(str(eng_lib))
+        eng_root = home / ".local" / "share" / "ameva" / "current" / engine_name
+        if eng_root.is_dir():
+            engine_dirs.append(str(eng_root))
 
-    local_lib = str(home / ".local/lib")
-    if os.path.isdir(local_lib) and local_lib not in ordered_dirs:
-        ordered_dirs.append(local_lib)
+    local_lib = home / ".local" / "lib"
+    if local_lib.is_dir():
+        engine_dirs.append(str(local_lib))
 
-    llama_lib = str(home / ".termux-llama/current/lib")
-    if os.path.isdir(llama_lib) and llama_lib not in ordered_dirs:
-        ordered_dirs.append(llama_lib)
+    llama_lib = home / ".termux-llama" / "current" / "lib"
+    if llama_lib.is_dir():
+        engine_dirs.append(str(llama_lib))
 
-    # Priority 4: Append remaining paths without duplication
-    existing_parts = [p for p in current_ld.split(":") if p]
-    final_dirs = ordered_dirs + [p for p in existing_parts if p not in ordered_dirs]
-    env["LD_LIBRARY_PATH"] = ":".join(final_dirs)
+    # Construct clean LD_LIBRARY_PATH: engine dirs first, then user's existing LD_LIBRARY_PATH
+    # Strictly filter out any /system/, /vendor/, or /apex/ directories to guarantee non-pollution
+    forbidden_prefixes = ("/system/", "/vendor/", "/apex/", "/system_ext/", "/odm/", "/product/")
+
+    existing_parts = [p for p in current_ld.split(":") if p and not any(p.startswith(fp) for fp in forbidden_prefixes)]
+
+    merged_dirs = []
+    for d in engine_dirs + existing_parts:
+        if d not in merged_dirs and not any(d.startswith(fp) for fp in forbidden_prefixes):
+            merged_dirs.append(d)
+
+    if merged_dirs:
+        env["LD_LIBRARY_PATH"] = ":".join(merged_dirs)
+    elif "LD_LIBRARY_PATH" in env:
+        env["LD_LIBRARY_PATH"] = ""
 
     # Mali GPU Quirks: Avoid infinite GEMM quantization loops on ARM Mali Valhall architectures
     try:
@@ -250,7 +245,22 @@ def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
         if "mali" in str(soc.gpu_family).lower() or soc.vendor == "samsung":
             env.setdefault("GGML_VK_FORCE_MEDIUM_MATMUL", "1")
             env.setdefault("GGML_VK_DISABLE_F16", "1")
+
+            # On Samsung Exynos / ARM Mali devices, enable HAL shim if present to sanitize vendor queue queries and GOS symbols
+            shim_candidates = [
+                home / ".local" / "lib" / "libegl_shim.so",
+                home / "libegl_shim.so",
+                Path("/data/data/com.termux/files/home/libegl_shim.so"),
+                Path("/data/data/com.termux/files/usr/lib/libegl_shim.so"),
+            ]
+            for sc in shim_candidates:
+                if sc.is_file():
+                    curr_preload = env.get("LD_PRELOAD", "")
+                    if str(sc) not in curr_preload:
+                        env["LD_PRELOAD"] = f"{sc}:{curr_preload}".strip(":") if curr_preload else str(sc)
+                    break
     except Exception:
         pass
 
     return env
+

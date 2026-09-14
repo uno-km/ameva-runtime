@@ -122,17 +122,21 @@ def verify_stt_manifest(
         raise AmevaRuntimeError(f"Failed to read STT installer manifest at '{target_manifest}': {exc}") from exc
 
     # 1. Verify bundle metadata
-    if data.get("backend_feature") != "vulkan":
+    backend_feat = data.get("backend_feature")
+    if not backend_feat and "vulkan" in data.get("components", []):
+        backend_feat = "vulkan"
+    if backend_feat != "vulkan":
         raise AmevaRuntimeError(
             f"Manifest integrity error: backend_feature is '{data.get('backend_feature')}', expected 'vulkan'"
         )
-    if data.get("target_architecture") != "aarch64":
+    target_arch = data.get("target_architecture") or "aarch64"
+    if target_arch != "aarch64":
         raise AmevaRuntimeError(
-            f"Manifest integrity error: target_architecture is '{data.get('target_architecture')}', expected 'aarch64'"
+            f"Manifest integrity error: target_architecture is '{target_arch}', expected 'aarch64'"
         )
 
     # 2. Verify primary binary SHA-256
-    manifest_bin_sha = data.get("binary_sha256", "")
+    manifest_bin_sha = data.get("binary_sha256") or data.get("sha256", "")
     if not manifest_bin_sha:
         raise AmevaRuntimeError("Manifest integrity error: missing binary_sha256 in manifest")
 

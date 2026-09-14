@@ -884,6 +884,8 @@ class Doctor:
                     "totalStages": report.total_stages,
                 },
                 "recommendedBackend": report.recommended_backend,
+                "recommended_backend": report.recommended_backend,
+                "overall_success": report.overall_success,
                 "profileQuirks": report.profile_quirks,
                 # 1개 버전 하위 호환 평탄화 필드
                 "vendorId": report.vendor_id,
@@ -891,9 +893,12 @@ class Doctor:
                 "driverVersion": getattr(report, "driver_version_raw", 0) or report.driver_version,
                 "apiVersion": getattr(report, "api_version", 0),
                 "deviceName": report.device_name,
+                "device_name": report.device_name,
                 "loaderPath": resolved_loader,
                 "passedStages": report.passed_stages,
+                "passed_stages": report.passed_stages,
                 "totalStages": report.total_stages,
+                "total_stages": report.total_stages,
                 "timestamp": time.time(),
             }
         tmp_path = self.state_path.with_name(f"{self.state_path.stem}_{os.getpid()}_{time.time_ns()}.tmp")
@@ -923,11 +928,26 @@ class Doctor:
                 data = json.loads(self.state_path.read_text(encoding="utf-8"))
                 age_sec = time.time() - data.get("timestamp", 0)
                 if age_sec < 3600:
-                    rec = data.get("recommended_backend", "")
+                    rec = (
+                        data.get("recommended_backend")
+                        or data.get("recommendedBackend", "")
+                    )
+                    val = data.get("validation") or {}
+                    passed = (
+                        data.get("passed_stages")
+                        or data.get("passedStages")
+                        or val.get("passedStages")
+                        or val.get("passed_stages", 0)
+                    )
+                    overall = bool(
+                        data.get("overall_success")
+                        or data.get("overallSuccess", False)
+                        or data.get("scopeSuccess", False)
+                    )
                     return bool(
-                        data.get("overall_success", False)
+                        overall
                         or rec in ("vulkan", "vulkan_driver_only")
-                        or data.get("passed_stages", 0) >= 7
+                        or (isinstance(passed, int) and passed >= 7)
                     )
             except (json.JSONDecodeError, UnicodeDecodeError) as e:
                 logger.warning("[ameva-vulkan-runtime] state.json 캐시 데이터 손상 감지, 재진단 수행: %s", e)
@@ -949,7 +969,12 @@ class Doctor:
                 data = json.loads(self.state_path.read_text(encoding="utf-8"))
                 age_sec = time.time() - data.get("timestamp", 0)
                 if age_sec < 3600:
-                    dev_name = data.get("device_name")
+                    dev_name = (
+                        data.get("device_name")
+                        or data.get("deviceName")
+                        or data.get("deviceFingerprint", {}).get("deviceName")
+                        or data.get("hardware", {}).get("deviceName")
+                    )
                     if dev_name and dev_name != "Unknown":
                         return dev_name
             except (json.JSONDecodeError, UnicodeDecodeError) as e:

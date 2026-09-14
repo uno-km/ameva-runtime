@@ -40,27 +40,33 @@ static PFN_vkGetPhysicalDeviceProperties2 g_real_props2 = NULL;
 static PFN_vkGetPhysicalDeviceFeatures2 g_real_features2 = NULL;
 static PFN_vkGetInstanceProcAddr g_real_gpa = NULL;
 static PFN_vkGetDeviceProcAddr g_real_gdpa = NULL;
+static PFN_vkGetDeviceQueue g_real_gdq = NULL;
+static PFN_vkGetDeviceQueue2 g_real_gdq2 = NULL;
+static PFN_vkQueueSubmit g_real_qs = NULL;
 
 static void init_vulkan_ptrs(void) {
     if (!g_vulkan_handle) {
-        // Prefer direct system driver to bypass broken termux loader boundaries
-        g_vulkan_handle = dlopen("/system/lib64/libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
+        // Gate 1: Non-polluting standard loader priority with RTLD_LOCAL
+        g_vulkan_handle = dlopen("libvulkan.so", RTLD_NOW | RTLD_LOCAL);
         if (!g_vulkan_handle) {
-            g_vulkan_handle = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_GLOBAL);
+            g_vulkan_handle = dlopen("/system/lib64/libvulkan.so", RTLD_NOW | RTLD_LOCAL);
         }
         if (!g_vulkan_handle) {
-            g_vulkan_handle = dlopen("libvulkan.so", RTLD_NOW | RTLD_GLOBAL);
+            g_vulkan_handle = dlopen("libvulkan.so.1", RTLD_NOW | RTLD_LOCAL);
         }
 
         if (g_vulkan_handle) {
             g_real_props2 = (PFN_vkGetPhysicalDeviceProperties2)dlsym(g_vulkan_handle, "vkGetPhysicalDeviceProperties2");
             if (!g_real_props2) g_real_props2 = (PFN_vkGetPhysicalDeviceProperties2)dlsym(g_vulkan_handle, "vkGetPhysicalDeviceProperties2KHR");
-            
+
             g_real_features2 = (PFN_vkGetPhysicalDeviceFeatures2)dlsym(g_vulkan_handle, "vkGetPhysicalDeviceFeatures2");
             if (!g_real_features2) g_real_features2 = (PFN_vkGetPhysicalDeviceFeatures2)dlsym(g_vulkan_handle, "vkGetPhysicalDeviceFeatures2KHR");
 
             g_real_gpa = (PFN_vkGetInstanceProcAddr)dlsym(g_vulkan_handle, "vkGetInstanceProcAddr");
             g_real_gdpa = (PFN_vkGetDeviceProcAddr)dlsym(g_vulkan_handle, "vkGetDeviceProcAddr");
+            g_real_gdq = (PFN_vkGetDeviceQueue)dlsym(g_vulkan_handle, "vkGetDeviceQueue");
+            g_real_gdq2 = (PFN_vkGetDeviceQueue2)dlsym(g_vulkan_handle, "vkGetDeviceQueue2");
+            g_real_qs = (PFN_vkQueueSubmit)dlsym(g_vulkan_handle, "vkQueueSubmit");
         }
     }
 }
@@ -136,8 +142,40 @@ VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFeatures2KHR(VkPhysicalDevice phys
     vkGetPhysicalDeviceFeatures2(physicalDevice, pFeatures);
 }
 
+VKAPI_ATTR void VKAPI_CALL vkGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQueueInfo, VkQueue* pQueue) {
+    init_vulkan_ptrs();
+    if (g_real_gdq2) {
+        g_real_gdq2(device, pQueueInfo, pQueue);
+    }
+    // Gate 3: If vkGetDeviceQueue2 returned NULL (ARM Mali-G68 / Exynos driver bug), fallback to vkGetDeviceQueue
+    if (pQueue && !*pQueue && pQueueInfo && g_real_gdq) {
+        g_real_gdq(device, pQueueInfo->queueFamilyIndex, pQueueInfo->queueIndex, pQueue);
+        if (*pQueue) {
+            fprintf(stderr, "[AMEVA-SHIM] Gate 3: vkGetDeviceQueue2 null-recovery succeeded via vkGetDeviceQueue (family=%u, index=%u -> %p)\n",
+                    pQueueInfo->queueFamilyIndex, pQueueInfo->queueIndex, (void*)*pQueue);
+        }
+    }
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence) {
+    init_vulkan_ptrs();
+    // Gate 3 Invariant 5: Never allow null queue handle to reach the driver
+    if (queue == VK_NULL_HANDLE) {
+        fprintf(stderr, "[AMEVA-SHIM] Gate 3 FATAL: vkQueueSubmit called with VK_NULL_HANDLE! Aborting invalid submission.\n");
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
+    if (g_real_qs) {
+        return g_real_qs(queue, submitCount, pSubmits, fence);
+    }
+    return VK_ERROR_INITIALIZATION_FAILED;
+}
+
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice device, const char* pName) {
     init_vulkan_ptrs();
+    if (pName) {
+        if (strcmp(pName, "vkGetDeviceQueue2") == 0) return (PFN_vkVoidFunction)vkGetDeviceQueue2;
+        if (strcmp(pName, "vkQueueSubmit") == 0) return (PFN_vkVoidFunction)vkQueueSubmit;
+    }
     if (pName && g_real_gdpa) {
         PFN_vkVoidFunction ptr = g_real_gdpa(device, pName);
         if (ptr) return ptr;
@@ -156,6 +194,8 @@ VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instan
         if (strcmp(pName, "vkGetInstanceProcAddr") == 0) return (PFN_vkVoidFunction)vkGetInstanceProcAddr;
         if (strcmp(pName, "vkGetPhysicalDeviceProperties2") == 0 || strcmp(pName, "vkGetPhysicalDeviceProperties2KHR") == 0) return (PFN_vkVoidFunction)vkGetPhysicalDeviceProperties2;
         if (strcmp(pName, "vkGetPhysicalDeviceFeatures2") == 0 || strcmp(pName, "vkGetPhysicalDeviceFeatures2KHR") == 0) return (PFN_vkVoidFunction)vkGetPhysicalDeviceFeatures2;
+        if (strcmp(pName, "vkGetDeviceQueue2") == 0) return (PFN_vkVoidFunction)vkGetDeviceQueue2;
+        if (strcmp(pName, "vkQueueSubmit") == 0) return (PFN_vkVoidFunction)vkQueueSubmit;
     }
     if (g_real_gpa) {
         PFN_vkVoidFunction ptr = g_real_gpa(instance, pName);

@@ -195,7 +195,7 @@ class Doctor:
             return False
         if p.gpu_family in ("Unknown", "None", ""):
             return False
-        return p.recommended_backend == "vulkan"
+        return p.recommended_backend in ("vulkan", "vulkan_driver_only")
 
 
 def diagnose(verbose: bool = False) -> DiagnosticReport:

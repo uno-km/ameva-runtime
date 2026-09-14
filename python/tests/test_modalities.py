@@ -111,9 +111,8 @@ class TestModalitiesIntegration(unittest.TestCase):
         result = LlamaCppAdapter.bind(engine_dict, mali_report)
         self.assertEqual(result.backend, "vulkan")
         self.assertTrue(result.config.get("mali_align"))
-        self.assertTrue(result.config.get("system_icd_prioritized"))
-        self.assertTrue(result.config.get("bridge_active"))
-        self.assertTrue(engine_dict["env"]["LD_LIBRARY_PATH"].startswith("/system/lib64"))
+        self.assertFalse(result.config.get("bridge_active"))
+        self.assertNotIn("/system/lib64", engine_dict["env"]["LD_LIBRARY_PATH"])
 
     def test_tts_adapter_with_real_tts_engine(self):
         """실제 ONNXNeuralEngine 인스턴스에 대한 바인딩 수행."""
