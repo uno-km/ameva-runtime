@@ -113,14 +113,15 @@ class TestInstallerSecurity(unittest.TestCase):
         verify_sha256(test_file, expected_hash)
         self.assertTrue(test_file.exists())
 
-    def test_verify_sha256_mismatch_unlinks_file(self):
+    def test_verify_sha256_mismatch_raises_and_preserves_lifecycle_isolation(self):
         test_file = self.root / "sample_tampered.bin"
         test_file.write_bytes(b"TAMPERED_DATA")
         wrong_hash = "0" * 64
         with self.assertRaises(RuntimeError) as ctx:
             verify_sha256(test_file, wrong_hash)
         self.assertIn("SHA-256 mismatch", str(ctx.exception))
-        self.assertFalse(test_file.exists())
+        # Pure verification: lifecycle isolation ensures verify_sha256 does not delete files
+        self.assertTrue(test_file.exists())
 
     def test_verify_sha256_missing_hash_rejected(self):
         test_file = self.root / "sample_no_hash.bin"
@@ -128,7 +129,7 @@ class TestInstallerSecurity(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             verify_sha256(test_file, None)
         self.assertIn("Missing expected SHA-256", str(ctx.exception))
-        self.assertFalse(test_file.exists())
+        self.assertTrue(test_file.exists())
 
     def test_verify_sha256_invalid_hex_rejected(self):
         test_file = self.root / "sample_bad_hex.bin"
@@ -136,19 +137,20 @@ class TestInstallerSecurity(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             verify_sha256(test_file, "INVALID_HEX_NOT_64_CHARS")
         self.assertIn("Invalid expected SHA-256", str(ctx.exception))
-        self.assertFalse(test_file.exists())
+        self.assertTrue(test_file.exists())
 
     def test_provision_asset_missing_sha256_fails_fast(self):
         spec = AssetSpec(
             name="test_missing_sha",
             filename="nonexistent.bin",
-            target_path=self.root / "bin" / "test_bin",
-            sha256=None,
+            download_sha256="",
+            binary_relpath="bin/test_bin",
+            canonical_name="test_bin",
         )
         mgr = NativeAssetManager()
-        success = mgr.provision_asset(spec)
-        self.assertFalse(success)
-        self.assertFalse(spec.target_path.exists())
+        with self.assertRaises(RuntimeError) as ctx:
+            mgr.provision_asset(spec)
+        self.assertIn("Missing pinned SHA-256", str(ctx.exception))
 
     # Resource Exhaustion & Special Member Rejection Tests
     def test_safe_extract_tar_rejects_fifo(self):

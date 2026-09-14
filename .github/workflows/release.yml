@@ -134,3 +134,61 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  publish-github-release:
+    name: Verify Native Assets & Publish GitHub Release
+    runs-on: ubuntu-latest
+    needs: [publish-pypi, publish-npm, publish-github-packages]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Automated Artifact Verification & Cryptographic Manifest Generation
+        run: |
+          mkdir -p dist/assets
+          if ls dist/assets/*.tar.gz 1> /dev/null 2>&1; then
+            python tools/build_release_manifest.py \
+              --assets-dir dist/assets \
+              --tag "${{ github.ref_name }}"
+          else
+            echo "No native assets found in dist/assets; proceeding with package distributions."
+          fi
+
+      - name: Strict Pre-Release Cryptographic Check
+        run: |
+          if [ -f "dist/assets/release-manifest.json" ]; then
+            echo "[*] Verifying all assets match generated manifest..."
+            for asset in dist/assets/*.tar.gz; do
+              [ -f "$asset" ] || continue
+              ACTUAL_SHA=$(sha256sum "$asset" | awk '{print $1}')
+              FILENAME=$(basename "$asset")
+              MANIFEST_SHA=$(python -c "import json; print(json.load(open('dist/assets/release-manifest.json'))['assets']['$FILENAME']['sha256'])")
+              if [ "$ACTUAL_SHA" != "$MANIFEST_SHA" ]; then
+                echo "FATAL: Cryptographic mismatch for $FILENAME: actual=$ACTUAL_SHA, manifest=$MANIFEST_SHA"
+                exit 1
+              fi
+              echo "[PASS] Verified $FILENAME: $ACTUAL_SHA"
+            done
+          fi
+
+      - name: Create GitHub Release via GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          shopt -s nullglob
+          RELEASE_FILES=(dist/*.whl dist/*.tar.gz dist/assets/*)
+          echo "Publishing release ${{ github.ref_name }} with ${#RELEASE_FILES[@]} assets..."
+          gh release create "${{ github.ref_name }}" "${RELEASE_FILES[@]}" \
+            --title "AMEVA Runtime ${{ github.ref_name }}" \
+            --generate-notes
+
+

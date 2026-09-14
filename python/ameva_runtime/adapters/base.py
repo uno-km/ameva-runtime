@@ -220,8 +220,21 @@ def get_vulkan_env(base_env: Optional[dict[str, str]] = None) -> dict[str, str]:
     if os.path.isdir(termux_usr_lib) and termux_usr_lib not in ordered_dirs:
         ordered_dirs.append(termux_usr_lib)
 
-    # Priority 3: Bundled llama/runtime libraries
-    llama_lib = str(Path.home() / ".termux-llama/current/lib")
+    # Priority 3: AMEVA isolated engine runtime libraries
+    home = Path.home()
+    for engine_name in ("stt", "diffusion", "tts"):
+        eng_lib = str(home / ".local/share/ameva/current" / engine_name / "lib")
+        if os.path.isdir(eng_lib) and eng_lib not in ordered_dirs:
+            ordered_dirs.append(eng_lib)
+        eng_root = str(home / ".local/share/ameva/current" / engine_name)
+        if os.path.isdir(eng_root) and eng_root not in ordered_dirs:
+            ordered_dirs.append(eng_root)
+
+    local_lib = str(home / ".local/lib")
+    if os.path.isdir(local_lib) and local_lib not in ordered_dirs:
+        ordered_dirs.append(local_lib)
+
+    llama_lib = str(home / ".termux-llama/current/lib")
     if os.path.isdir(llama_lib) and llama_lib not in ordered_dirs:
         ordered_dirs.append(llama_lib)
 

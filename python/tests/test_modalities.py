@@ -9,9 +9,10 @@ from types import SimpleNamespace
 # Add all active workspace packages to sys.path
 DEV_DIR = Path(__file__).parent.parent.parent.parent
 for pkg in ["termux-stt", "termux-bitnet", "termux-diffusion", "termux-llamacpp", "termux-tts", "termux-vision"]:
-    p = str(DEV_DIR / pkg)
-    if p not in sys.path:
-        sys.path.insert(0, p)
+    for cand in [DEV_DIR / pkg, DEV_DIR / "termux" / pkg]:
+        p = str(cand)
+        if cand.is_dir() and p not in sys.path:
+            sys.path.insert(0, p)
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -26,12 +27,16 @@ from ameva_runtime.vulkan.adapters import (
     VisionAdapter,
 )
 
-# Import real modality configuration / engine definitions
-from termux_stt.engine.base import EngineConfig
-from termux_bitnet.config import BitNetConfig
-from termux_llamacpp.config import RuntimeConfig
-from termux_tts.engine_onnx import ONNXNeuralEngine
-from termux_diffusion.hardware import HardwareProfile
+# Import real modality configuration / engine definitions if available
+try:
+    from termux_stt.engine.base import EngineConfig
+    from termux_bitnet.config import BitNetConfig
+    from termux_llamacpp.config import RuntimeConfig
+    from termux_tts.engine_onnx import ONNXNeuralEngine
+    from termux_diffusion.hardware import HardwareProfile
+    MODALITIES_AVAILABLE = True
+except ImportError:
+    MODALITIES_AVAILABLE = False
 
 
 def _get_report() -> DiagnosticReport:
@@ -39,6 +44,7 @@ def _get_report() -> DiagnosticReport:
     return doc.run_self_test(verbose=False)
 
 
+@unittest.skipUnless(MODALITIES_AVAILABLE, "Termux modalities packages not present in environment")
 class TestModalitiesIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

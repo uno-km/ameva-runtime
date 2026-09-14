@@ -45,6 +45,7 @@ class BindingResult:
         "_config",
         "_status",
         "_diagnosis",
+        "_restore_state",
     )
 
     def __init__(
@@ -57,6 +58,7 @@ class BindingResult:
         config: Dict[str, Any],
         status: str = "BOUND",
         diagnosis: str = "",
+        restore_state: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._module = module
         self._backend = backend
@@ -66,6 +68,7 @@ class BindingResult:
         self._config = dict(config)
         self._status = status
         self._diagnosis = diagnosis
+        self._restore_state = dict(restore_state) if restore_state is not None else None
 
     @property
     def module(self) -> str:
@@ -98,6 +101,10 @@ class BindingResult:
     @property
     def diagnosis(self) -> str:
         return self._diagnosis
+
+    @property
+    def restore_state(self) -> Optional[Dict[str, Any]]:
+        return dict(self._restore_state) if self._restore_state is not None else None
 
     @property
     def is_accelerated(self) -> bool:

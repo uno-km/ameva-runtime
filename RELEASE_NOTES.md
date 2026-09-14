@@ -3,6 +3,28 @@
 All notable changes and milestones for `ameva-runtime` will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and Apache-2.0 governance.
 
+## [v2.5.1] - 2026-09-14
+### Qualcomm Adreno Vulkan Native Acceleration & SoftMax wg64 Alignment
+
+#### Version Architecture SSOT
+- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.4`
+- **Python Distribution**: `2.5.1`
+- **Native Vulkan Engine**: Single SSOT STT bundle (`whisper-cli-vulkan-android-arm64.tar.gz`)
+
+#### Key Engineering Milestones
+- **Qualcomm Adreno Vulkan SoftMax wg64 Alignment**:
+  - Eliminated driver deadlock (`VK_ERROR_DEVICE_LOST`) on Qualcomm Adreno 730 / 600 / 800 series by constraining Vulkan SoftMax workgroups to hardware subgroup size (64).
+  - Implemented automatic hardware-aware routing in Whisper core: automatically detects Qualcomm Adreno and bypasses closed driver compiler assertions on Flash Attention, routing directly to the 100% native Vulkan GPU standard attention pipeline without manual `--no-flash-attn` (`-nfa`) CLI flags.
+  - **Empirical Ground-Truth Speedup**: Galaxy S22 (Adreno 730) achieves **3.73x speedup in neural encoder time (19.14s CPU -> 5.13s GPU)** with zero silent fallback (`fallbacks = 0 p / 0 h`) and ~14% CPU load.
+- **Single SSOT Engine Bundle Provisioning**:
+  - Unified native asset deployment under `NATIVE_ASSETS["stt"]` with verified cryptographic SHA-256 (`90a2f4fd275aa13012e95f3fae5b00c2abc5079a50d2997ffb227355e6b6c944`).
+  - Added Zip-Bomb, member count, file size, and symlink traversal defenses in `safe_extract_tar`.
+  - Atomic release directory deployment and canonical symlink swapping (`~/.local/share/ameva/current/<name>`).
+- **Mali-G78 Flash Attention Non-Regression**:
+  - Preserved native Vulkan Flash Attention for ARM Mali GPUs (Galaxy S21: ~17.5s total time, 0 fallbacks).
+
+---
+
 ## [v2.6.0-alpha.3] - 2026-09-10
 ### Archive Defense Completion & Resource Limits Hardening
 

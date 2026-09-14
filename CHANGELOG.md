@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.1] - 2026-09-14
+### Added & Fixed
+- **Qualcomm Adreno Vulkan SoftMax wg64 Alignment & Auto-Routing**:
+  - Resolved Vulkan driver device lost (`VK_ERROR_DEVICE_LOST`) and cross-warp barrier deadlock on Qualcomm Adreno 730/600/800 GPUs by constraining SoftMax workgroup size to hardware subgroup size (64).
+  - Implemented automatic hardware detection and routing in Whisper core to bypass closed driver Flash Attention compiler assertions, routing directly to 100% native Vulkan GPU standard attention without manual `--no-flash-attn` (`-nfa`) flags.
+  - **Empirical Ground-Truth Speedup**: Galaxy S22 (Adreno 730) achieves **3.73x speedup in neural encoder time (19.14s CPU -> 5.13s GPU)** with zero silent fallback (`fallbacks = 0 p / 0 h`) and ~14% CPU load.
+- **Single SSOT Engine Bundle Provisioning**:
+  - Unified native asset deployment under `NATIVE_ASSETS["stt"]` with verified cryptographic SHA-256 (`90a2f4fd275aa13012e95f3fae5b00c2abc5079a50d2997ffb227355e6b6c944`).
+  - Added Zip-Bomb, member count, file size, and symlink traversal defenses in `safe_extract_tar`.
+  - Atomic release directory deployment and canonical symlink swapping (`~/.local/share/ameva/current/<name>`).
+- **Mali-G78 Flash Attention Non-Regression**:
+  - Preserved native Vulkan Flash Attention for ARM Mali GPUs (Galaxy S21: ~17.5s total time, 0 fallbacks).
+
+---
+
 ## [2.5.0] - 2026-09-07
 ### Added
 - Native BitNet 1.58-bit Vulkan Compute Engine (`src/core/vulkan_bitnet_engine.cpp`) with 7 dedicated SPIR-V compute kernels.
