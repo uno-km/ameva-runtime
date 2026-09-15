@@ -108,10 +108,6 @@ def resolve_model_path(model_arg: str) -> str:
 
 def find_inference_binary() -> Optional[str]:
     """Locates llama-cli or compatible inference binary across PATH and mobile environments."""
-    found_in_path = shutil.which("llama-cli")
-    if found_in_path:
-        return found_in_path
-
     search_paths = [
         os.path.expanduser("~/.termux-llama/current/bin/llama-cli"),
         "/data/data/com.termux/files/home/.termux-llama/current/bin/llama-cli",
@@ -119,7 +115,6 @@ def find_inference_binary() -> Optional[str]:
         "/data/data/com.termux/files/home/vulkan-llama/bin/llama-cli",
         os.path.expanduser("~/.termux-llama/bin/llama-cli"),
         "/data/data/com.termux/files/home/.termux-llama/bin/llama-cli",
-        "/data/data/com.termux/files/usr/bin/llama-cli",
         os.path.expanduser("~/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli"),
         "/data/data/com.termux/files/home/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli",
         os.path.expanduser("~/llama.cpp/build/bin/llama-cli"),
@@ -129,6 +124,11 @@ def find_inference_binary() -> Optional[str]:
         real_p = os.path.realpath(p)
         if os.path.isfile(real_p) and os.access(real_p, os.X_OK):
             return real_p
+
+    found_in_path = shutil.which("llama-cli")
+    if found_in_path:
+        return found_in_path
+
     return None
 
 
