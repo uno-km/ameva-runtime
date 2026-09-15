@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.7.0] - 2026-09-15
+## [2.7.1] - 2026-09-15
 ### Added & Hardened (Zero-Deception Compliance)
 - **Strict Model Resolution & Ambiguous Match Guard (`AmbiguousModelMatchError`)**:
   - Implemented deterministic model path resolution in `LlamaCppAdapter.resolve_model_path`, checking candidate directories (`~/.termux-llama/models`, `~/models`, current directory).
