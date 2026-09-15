@@ -1,11 +1,12 @@
 """
 LlamaCppAdapter — termux-llamacpp (GGUF LLM) Vulkan Acceleration Adapter
+Zero-Silent-Fallback and Anti-Deception Compliant Engine Orchestrator
 """
 from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 
 from .base import (
     _is_vulkan_report,
@@ -21,6 +22,9 @@ from .base import (
 from ..exceptions import AmevaRuntimeError, PlatformNotSupportedError
 
 logger = logging.getLogger("ameva_runtime.adapters.llamacpp")
+
+DEFAULT_GPU_LAYERS = 999
+ALLOWED_BACKENDS = {"auto", "vulkan", "gpu", "cpu", "cpu_neon"}
 
 CPU_FALLBACK_PATTERNS = (
     "no gpu found",
@@ -42,12 +46,19 @@ VULKAN_INIT_PATTERNS = (
 )
 
 
-def verify_vulkan_llm_output(output: str) -> None:
-    """Strict Zero-Silent-Fallback: Validates inference output stream against CPU fallback.
-    
+def verify_vulkan_llm_output(output: str, returncode: int = 0) -> None:
+    """Strict Zero-Silent-Fallback: Validates inference output stream and return code against CPU fallback.
+
     Raises:
+        AmevaRuntimeError: If process exited with a non-zero exit code.
         PlatformNotSupportedError: If CPU fallback or absence of Vulkan initialization is detected.
     """
+    if returncode != 0:
+        raise AmevaRuntimeError(
+            f"[termux-llamacpp] LLM execution failed with exit code {returncode}.\n"
+            f"Output:\n{output}"
+        )
+
     lowered = output.lower()
     for pat in CPU_FALLBACK_PATTERNS:
         if pat in lowered:
@@ -62,26 +73,54 @@ def verify_vulkan_llm_output(output: str) -> None:
         )
 
 
-def _calculate_llama_layers(engine: Any = None, requested_ngl: int | None = None) -> int:
-    """Determines GPU offload layers for GGUF LLMs.
-    
-    Zero-String-Heuristics Principle:
-    - If user explicitly specified requested_ngl, enforce it unconditionally (caller assumes full responsibility for OOM).
-    - If engine config specifies ngl, use that value directly.
-    - If no layer count was specified, default to 999 (delegates to upstream llama.cpp automatic clamp).
+def _calculate_llama_layers(
+    engine: Any = None,
+    requested_ngl: Optional[int] = None,
+    is_vulkan: bool = True,
+) -> int:
+    """Determines GPU offload layers for GGUF LLMs adhering to strict Zero-Silent-Fallback.
+
+    Rules:
+    - If is_vulkan is False, offload layers must strictly be 0.
+    - If caller specified requested_ngl:
+        - If is_vulkan and requested_ngl <= 0: raises AmevaRuntimeError due to conflicting configuration.
+        - Otherwise returns int(requested_ngl).
+    - If engine config specifies an existing positive ngl, respects it.
+    - Default to DEFAULT_GPU_LAYERS (99) for full GPU offloading under Vulkan.
     """
+    if not is_vulkan:
+        return 0
+
     if requested_ngl is not None:
-        return int(requested_ngl)
+        val = int(requested_ngl)
+        if val <= 0:
+            raise AmevaRuntimeError(
+                f"[termux-llamacpp] Conflicting configuration: Vulkan GPU backend requested "
+                f"with non-positive layer offloading (requested_ngl={val})."
+            )
+        return val
+
     if engine is not None:
+        existing_ngl = None
         if isinstance(engine, dict) and "ngl" in engine and engine["ngl"] is not None:
-            return int(engine["ngl"])
-        if hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", None) is not None:
-            return int(engine.n_gpu_layers)
-        if hasattr(engine, "ngl") and getattr(engine, "ngl", None) is not None:
-            return int(engine.ngl)
-        if hasattr(engine, "n_layers") and getattr(engine, "n_layers", None) is not None:
-            return int(engine.n_layers)
-    return 999
+            existing_ngl = int(engine["ngl"])
+        elif hasattr(engine, "config"):
+            cfg = engine.config
+            if isinstance(cfg, dict):
+                existing_ngl = int(cfg.get("ngl") or cfg.get("n_gpu_layers") or 0)
+            else:
+                existing_ngl = int(getattr(cfg, "ngl", 0) or getattr(cfg, "n_gpu_layers", 0))
+        elif hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", None) is not None:
+            existing_ngl = int(engine.n_gpu_layers)
+        elif hasattr(engine, "ngl") and getattr(engine, "ngl", None) is not None:
+            existing_ngl = int(engine.ngl)
+        elif hasattr(engine, "n_layers") and getattr(engine, "n_layers", None) is not None:
+            existing_ngl = int(engine.n_layers)
+
+        if existing_ngl is not None and existing_ngl > 0:
+            return existing_ngl
+
+    return DEFAULT_GPU_LAYERS
 
 
 class LlamaCppAdapter(BaseAdapter):
@@ -92,28 +131,37 @@ class LlamaCppAdapter(BaseAdapter):
     @classmethod
     def get_execution_environment(
         cls,
-        base_env: dict[str, str] | None = None,
-    ) -> dict[str, str]:
-        """Provides verified execution environment adhering to Golden Link Order."""
-        env = get_vulkan_env(base_env)
-        env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
-        return env
+        base_env: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, str]:
+        """Provides verified execution environment adhering to Golden Link Order.
+        Strictly preserves Vulkan validation checks without forced bypasses.
+        """
+        return get_vulkan_env(base_env)
 
     @staticmethod
     def bind(
         engine: Any = None,
         report: Any = None,
         profile: Any = None,
-        requested_backend: str | None = None,
-        requested_ngl: int | None = None,
+        requested_backend: Optional[str] = None,
+        requested_ngl: Optional[int] = None,
         **kwargs: Any,
     ) -> BindingResult:
+        """Binds llama.cpp engine or config to verified hardware acceleration plan."""
         report = resolve_diagnostic_report(report, profile)
+        raw_req = requested_backend
+        req_norm = str(raw_req or "auto").lower().strip()
+
+        if req_norm not in ALLOWED_BACKENDS:
+            raise AmevaRuntimeError(
+                f"[termux-llamacpp] Unsupported backend '{requested_backend}'. "
+                f"Allowed backends: {sorted(ALLOWED_BACKENDS)}"
+            )
+
         is_vk = _is_vulkan_report(report)
 
-        # Strict Rule: Only 'auto' or None allows adaptive CPU routing when Vulkan is unavailable.
-        # Explicit 'vulkan' or 'gpu' strictly refuses any CPU fallback and raises PlatformNotSupportedError immediately.
-        req_norm = str(requested_backend or "").lower().strip()
+        # Strict Rule: Only 'auto' allows adaptive CPU routing when Vulkan is unavailable.
+        # Explicit 'vulkan' or 'gpu' strictly refuses CPU fallback and raises PlatformNotSupportedError immediately.
         if req_norm in ("vulkan", "gpu"):
             check_vulkan_availability_or_raise(
                 LlamaCppAdapter.module_name,
@@ -125,23 +173,23 @@ class LlamaCppAdapter(BaseAdapter):
         elif req_norm in ("cpu", "cpu_neon"):
             is_vk = False
         else:
-            # req_norm is 'auto' or None: strictly adaptive routing based on hardware profile
+            # 'auto': strictly adaptive routing based on hardware diagnostic report
             pass
 
         config: dict = {
             "module": LlamaCppAdapter.module_name,
             "device_name": report.device_name,
             "vendor_id": report.vendor_id,
+            "requested_backend": req_norm,
         }
 
         if is_vk:
             cpu_cores = os.cpu_count() or 8
             big_cores = max(1, cpu_cores // 2)
-            ngl = _calculate_llama_layers(engine, requested_ngl=requested_ngl)
+            ngl = _calculate_llama_layers(engine, requested_ngl=requested_ngl, is_vulkan=True)
             is_mali = (report.vendor_id == _MALI_VENDOR_ID or "mali" in str(report.device_name or "").lower())
-            if is_mali or (report and getattr(report, "overall_success", False)):
-                config["system_icd_prioritized"] = True
-                config["bridge_active"] = False
+            loader_path = getattr(report, "loader_path", "")
+            is_system_icd = bool(loader_path and "/system" in str(loader_path))
 
             config.update({
                 "backend": "vulkan",
@@ -151,21 +199,26 @@ class LlamaCppAdapter(BaseAdapter):
                 "ctx_size": 2048,
                 "threads": big_cores,
                 "mali_align": is_mali,
+                "bridge_active": False,
+                "system_icd_prioritized": is_system_icd,
+                "loader_path": loader_path,
             })
 
             if engine is not None:
                 try:
                     if isinstance(engine, dict):
-                        engine.setdefault("ngl", ngl)
+                        engine["ngl"] = ngl
                         engine["device"] = "vulkan"
                         engine.setdefault("flash_attn", True)
                         engine.setdefault("threads", big_cores)
-                        engine.setdefault("env", {})["LD_LIBRARY_PATH"] = os.environ.get("LD_LIBRARY_PATH", "")
+                        if "env" not in engine:
+                            engine["env"] = {}
+                        engine["env"].setdefault("LD_LIBRARY_PATH", os.environ.get("LD_LIBRARY_PATH", ""))
                     elif hasattr(engine, "config"):
                         cfg = engine.config
                         if isinstance(cfg, dict):
-                            cfg.setdefault("ngl", ngl)
-                            cfg.setdefault("n_gpu_layers", ngl)
+                            cfg["ngl"] = ngl
+                            cfg["n_gpu_layers"] = ngl
                             cfg["device"] = "vulkan"
                             cfg.setdefault("flash_attn", True)
                             cfg.setdefault("threads", big_cores)
@@ -181,9 +234,9 @@ class LlamaCppAdapter(BaseAdapter):
                             if hasattr(cfg, "threads") and getattr(cfg, "threads", 0) == 0:
                                 cfg.threads = big_cores
                     elif hasattr(engine, "ngl") or hasattr(engine, "n_gpu_layers"):
-                        if hasattr(engine, "ngl") and getattr(engine, "ngl", 0) == 0:
+                        if hasattr(engine, "ngl"):
                             engine.ngl = ngl
-                        if hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", 0) == 0:
+                        if hasattr(engine, "n_gpu_layers"):
                             engine.n_gpu_layers = ngl
                         if hasattr(engine, "device"):
                             engine.device = "vulkan"
@@ -197,13 +250,13 @@ class LlamaCppAdapter(BaseAdapter):
                         if "-t" not in engine and "--threads" not in engine:
                             engine.extend(["-t", str(big_cores)])
                     logger.info(
-                        "[ameva-runtime:LlamaCppAdapter] Injected -ngl %d -t %d --device vulkan"
-                        " (device=%s, is_mali=%s)", ngl, big_cores, report.device_name, is_mali
+                        "[%s] Injected -ngl %d -t %d --device vulkan (device=%s, is_mali=%s)",
+                        LlamaCppAdapter.module_name, ngl, big_cores, report.device_name, is_mali
                     )
                 except Exception as e:
-                    logger.error("[ameva-runtime:LlamaCppAdapter] Binding error: %s", e)
+                    logger.error("[%s] Binding error: %s", LlamaCppAdapter.module_name, e)
                     raise AmevaRuntimeError(
-                        f"[ameva-runtime:LlamaCppAdapter] llama.cpp Vulkan binding failure: {e}"
+                        f"[{LlamaCppAdapter.module_name}] llama.cpp Vulkan binding failure: {e}"
                     ) from e
 
             return BindingResult(
@@ -213,28 +266,34 @@ class LlamaCppAdapter(BaseAdapter):
                 device_name=report.device_name,
                 vendor_id=report.vendor_id,
                 config=config,
-                status="BOUND",
+                status="BOUND_VULKAN",
             )
         else:
             cpu_cores = os.cpu_count() or 8
             big_cores = max(1, cpu_cores // 2)
+            config["backend"] = "cpu_neon"
             config["ngl"] = 0
             config["threads"] = big_cores
+
             if engine is not None:
                 if isinstance(engine, dict):
                     engine["ngl"] = 0
+                    engine["device"] = "cpu"
                     engine.setdefault("threads", big_cores)
                 elif hasattr(engine, "config"):
                     cfg = engine.config
                     if isinstance(cfg, dict):
                         cfg["ngl"] = 0
                         cfg["n_gpu_layers"] = 0
+                        cfg["device"] = "cpu"
                         cfg.setdefault("threads", big_cores)
                     else:
                         if hasattr(cfg, "n_gpu_layers"):
                             cfg.n_gpu_layers = 0
                         if hasattr(cfg, "ngl"):
                             cfg.ngl = 0
+                        if hasattr(cfg, "device"):
+                            cfg.device = "cpu"
                         if hasattr(cfg, "threads"):
                             cfg.threads = big_cores
                 elif hasattr(engine, "ngl") or hasattr(engine, "n_gpu_layers"):
@@ -242,21 +301,30 @@ class LlamaCppAdapter(BaseAdapter):
                         engine.ngl = 0
                     if hasattr(engine, "n_gpu_layers"):
                         engine.n_gpu_layers = 0
+                    if hasattr(engine, "device"):
+                        engine.device = "cpu"
                     if hasattr(engine, "threads"):
                         engine.threads = big_cores
                 elif isinstance(engine, list):
                     if "-t" not in engine and "--threads" not in engine:
                         engine.extend(["-t", str(big_cores)])
+
+            reason = (
+                "Explicit CPU requested by user"
+                if req_norm in ("cpu", "cpu_neon")
+                else "Vulkan hardware unavailable (adaptive routing)"
+            )
             return _make_cpu_binding(
                 LlamaCppAdapter.module_name,
                 report,
                 config,
-                reason="Explicit CPU requested" if requested_backend in ("cpu", "cpu_neon") else "Vulkan unavailable",
+                reason=reason,
             )
 
     @staticmethod
     def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-runtime:LlamaCppAdapter] Unbinding adapter and resetting resources.")
+        """Unbinds adapter and resets engine configuration."""
+        logger.info("[%s] Unbinding adapter and resetting resources.", LlamaCppAdapter.module_name)
         if engine is not None:
             try:
                 if isinstance(engine, dict):
@@ -283,7 +351,7 @@ class LlamaCppAdapter(BaseAdapter):
                     if hasattr(engine, "device"):
                         engine.device = "cpu"
             except Exception as e:
-                logger.debug("[ameva-runtime:LlamaCppAdapter] Ignored exception during unbind: %s", e)
+                logger.debug("[%s] Ignored exception during unbind: %s", LlamaCppAdapter.module_name, e)
 
     @classmethod
     def build_cli_args(
@@ -304,22 +372,34 @@ class LlamaCppAdapter(BaseAdapter):
         device_name: Optional[str] = None,
         ngl_override: Optional[int] = None,
         no_display_prompt: bool = True,
-    ) -> list[str]:
+    ) -> List[str]:
         """Assembles verified LLM CLI argument list conforming to modern llama-cli specifications."""
+        backend_norm = (target_backend or "auto").strip().lower()
+        if backend_norm not in ALLOWED_BACKENDS:
+            raise AmevaRuntimeError(
+                f"[{cls.module_name}] Unsupported target_backend '{target_backend}'. Allowed: {sorted(ALLOWED_BACKENDS)}"
+            )
+
         if threads == "auto" or threads is None:
             cpu_count = os.cpu_count() or 8
             thread_val = str(max(1, min(4, cpu_count // 2 if cpu_count > 4 else cpu_count)))
         else:
             thread_val = str(threads)
 
-        if ngl_override is not None:
-            ngl_val = str(ngl_override)
-        elif target_backend == "cpu":
+        if backend_norm in ("cpu", "cpu_neon"):
             ngl_val = "0"
-        elif target_backend in ("vulkan", "gpu"):
-            ngl_val = "99"
+        elif backend_norm in ("vulkan", "gpu"):
+            if ngl_override is not None:
+                if int(ngl_override) <= 0:
+                    raise AmevaRuntimeError(
+                        f"[{cls.module_name}] Vulkan backend requested but ngl_override is {ngl_override} <= 0."
+                    )
+                ngl_val = str(ngl_override)
+            else:
+                ngl_val = str(DEFAULT_GPU_LAYERS)
         else:
-            ngl_val = "99"
+            # 'auto': defaults to DEFAULT_GPU_LAYERS unless overridden
+            ngl_val = str(ngl_override if ngl_override is not None else DEFAULT_GPU_LAYERS)
 
         cmd = [
             str(executable),
@@ -336,7 +416,7 @@ class LlamaCppAdapter(BaseAdapter):
         elif prompt:
             cmd.extend(["-p", str(prompt)])
 
-        if target_backend in ("vulkan", "gpu") and device_name:
+        if backend_norm in ("vulkan", "gpu") and device_name:
             cmd.extend(["--device", device_name])
 
         if no_display_prompt:
@@ -352,4 +432,5 @@ class LlamaCppAdapter(BaseAdapter):
             cmd.extend(["-s", str(seed)])
 
         return cmd
+
 
