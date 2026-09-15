@@ -86,15 +86,50 @@ class TestLlamaCppAdapterRefactored(unittest.TestCase):
         """P0-4 Fix: Dict engine mutation must set values deterministically."""
         engine_dict = {"ngl": 0, "device": "none"}
         res = LlamaCppAdapter.bind(engine=engine_dict, report=self.vulkan_report, requested_ngl=28)
-        self.assertEqual(res.status, "BOUND_VULKAN")
+        self.assertEqual(res.status, "CONFIGURED_VULKAN")
         self.assertEqual(engine_dict["ngl"], 28)
         self.assertEqual(engine_dict["device"], "vulkan")
 
-    def test_p1_4_status_is_bound_vulkan(self):
-        """P1-4 Fix: Status must accurately reflect BOUND_VULKAN."""
+    def test_p1_4_status_is_configured_vulkan(self):
+        """P1-4 Fix: Status must accurately reflect CONFIGURED_VULKAN."""
         res = LlamaCppAdapter.bind(report=self.vulkan_report)
-        self.assertEqual(res.status, "BOUND_VULKAN")
+        self.assertEqual(res.status, "CONFIGURED_VULKAN")
         self.assertTrue(res.is_vulkan)
+
+    def test_ld_library_path_not_injected(self):
+        """Fix: engine dict must NOT receive arbitrary LD_LIBRARY_PATH injection."""
+        engine_dict = {}
+        LlamaCppAdapter.bind(engine=engine_dict, report=self.vulkan_report)
+        self.assertNotIn("env", engine_dict)
+
+    def test_cli_list_vulkan_conflicting_ngl_raises_error(self):
+        """Fix: Vulkan requested with existing CLI list -ngl 0 must raise AmevaRuntimeError."""
+        with self.assertRaises(AmevaRuntimeError) as ctx:
+            LlamaCppAdapter.bind(
+                engine=["-ngl", "0"],
+                report=self.vulkan_report,
+                requested_backend="vulkan",
+            )
+        self.assertIn("Conflicting CLI arguments", str(ctx.exception))
+
+    def test_cli_list_cpu_conflicting_ngl_raises_error(self):
+        """Fix: CPU requested with existing CLI list -ngl 32 must raise AmevaRuntimeError."""
+        with self.assertRaises(AmevaRuntimeError) as ctx:
+            LlamaCppAdapter.bind(
+                engine=["-ngl", "32"],
+                report=self.vulkan_report,
+                requested_backend="cpu",
+            )
+        self.assertIn("Conflicting CLI arguments", str(ctx.exception))
+
+    def test_cli_list_clean_injection(self):
+        """Fix: Clean CLI list receives -ngl 999 and --device vulkan without duplicate."""
+        cmd = ["-m", "model.gguf"]
+        LlamaCppAdapter.bind(engine=cmd, report=self.vulkan_report, requested_backend="vulkan")
+        self.assertIn("-ngl", cmd)
+        self.assertEqual(cmd[cmd.index("-ngl") + 1], "999")
+        self.assertIn("--device", cmd)
+        self.assertEqual(cmd[cmd.index("--device") + 1], "vulkan")
 
     def test_p1_7_verify_vulkan_llm_output_with_returncode(self):
         """P1-7 Fix: verify_vulkan_llm_output must inspect returncode and stdout/stderr."""

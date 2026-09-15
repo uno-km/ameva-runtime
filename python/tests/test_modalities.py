@@ -62,7 +62,7 @@ class TestModalitiesIntegration(unittest.TestCase):
         """BindingResult 공통 불변조건 검증."""
         self.assertIsInstance(result, BindingResult)
         self.assertEqual(result.module, module)
-        self.assertIn(result.status, ("BOUND", "BOUND_CPU", "BOUND_VULKAN", "BOUND_CPU_NEON", "VULKAN_CANDIDATE_SELECTED"))
+        self.assertIn(result.status, ("BOUND", "BOUND_CPU", "BOUND_VULKAN", "CONFIGURED_VULKAN", "BOUND_CPU_NEON", "VULKAN_CANDIDATE_SELECTED"))
         self.assertIn(result.backend, ("vulkan", "cpu_neon"))
         self.assertIsInstance(result.config, dict)
         self.assertEqual(result.is_vulkan, self.is_vulkan)
@@ -113,7 +113,7 @@ class TestModalitiesIntegration(unittest.TestCase):
         self.assertEqual(result.backend, "vulkan")
         self.assertTrue(result.config.get("mali_align"))
         self.assertFalse(result.config.get("bridge_active"))
-        self.assertNotIn("/system/lib64", engine_dict["env"]["LD_LIBRARY_PATH"])
+        self.assertNotIn("/system/lib64", engine_dict.get("env", {}).get("LD_LIBRARY_PATH", ""))
 
     def test_tts_adapter_with_real_tts_engine(self):
         """실제 ONNXNeuralEngine 인스턴스에 대한 바인딩 수행."""

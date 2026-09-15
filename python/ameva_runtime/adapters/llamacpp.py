@@ -23,7 +23,8 @@ from ..exceptions import AmevaRuntimeError, PlatformNotSupportedError
 
 logger = logging.getLogger("ameva_runtime.adapters.llamacpp")
 
-DEFAULT_GPU_LAYERS = 999
+FULL_OFFLOAD_SENTINEL = 999  # Upstream llama.cpp sentinel value triggering automatic clamp to total model layers
+DEFAULT_GPU_LAYERS = FULL_OFFLOAD_SENTINEL
 ALLOWED_BACKENDS = {"auto", "vulkan", "gpu", "cpu", "cpu_neon"}
 
 CPU_FALLBACK_PATTERNS = (
@@ -44,6 +45,19 @@ VULKAN_INIT_PATTERNS = (
     "ggml_vulkan: found 1 vulkan device",
     "ggml_vulkan: found",
 )
+
+
+def _extract_cli_ngl(args: list[str]) -> Optional[int]:
+    """Extracts existing -ngl or --n-gpu-layers value from CLI arguments list."""
+    for flag in ("-ngl", "--n-gpu-layers"):
+        if flag in args:
+            idx = args.index(flag)
+            if idx + 1 < len(args):
+                try:
+                    return int(args[idx + 1])
+                except ValueError:
+                    return None
+    return None
 
 
 def verify_vulkan_llm_output(output: str, returncode: int = 0) -> None:
@@ -86,7 +100,7 @@ def _calculate_llama_layers(
         - If is_vulkan and requested_ngl <= 0: raises AmevaRuntimeError due to conflicting configuration.
         - Otherwise returns int(requested_ngl).
     - If engine config specifies an existing positive ngl, respects it.
-    - Default to DEFAULT_GPU_LAYERS (99) for full GPU offloading under Vulkan.
+    - Default to FULL_OFFLOAD_SENTINEL (999) for full GPU offloading under Vulkan (delegates to upstream layer clamp).
     """
     if not is_vulkan:
         return 0
@@ -173,7 +187,7 @@ class LlamaCppAdapter(BaseAdapter):
         elif req_norm in ("cpu", "cpu_neon"):
             is_vk = False
         else:
-            # 'auto': strictly adaptive routing based on hardware diagnostic report
+            # 'auto': adaptive routing strictly based on hardware diagnostic report
             pass
 
         config: dict = {
@@ -211,9 +225,6 @@ class LlamaCppAdapter(BaseAdapter):
                         engine["device"] = "vulkan"
                         engine.setdefault("flash_attn", True)
                         engine.setdefault("threads", big_cores)
-                        if "env" not in engine:
-                            engine["env"] = {}
-                        engine["env"].setdefault("LD_LIBRARY_PATH", os.environ.get("LD_LIBRARY_PATH", ""))
                     elif hasattr(engine, "config"):
                         cfg = engine.config
                         if isinstance(cfg, dict):
@@ -239,7 +250,13 @@ class LlamaCppAdapter(BaseAdapter):
                         if hasattr(engine, "threads") and getattr(engine, "threads", 0) == 0:
                             engine.threads = big_cores
                     elif isinstance(engine, list):
-                        if "-ngl" not in engine and "--n-gpu-layers" not in engine:
+                        existing_ngl = _extract_cli_ngl(engine)
+                        if existing_ngl is not None and existing_ngl <= 0:
+                            raise AmevaRuntimeError(
+                                f"[{LlamaCppAdapter.module_name}] Conflicting CLI arguments: Vulkan GPU backend requested "
+                                f"but existing arguments specify -ngl {existing_ngl} <= 0."
+                            )
+                        if existing_ngl is None:
                             engine.extend(["-ngl", str(ngl)])
                         if "--device" not in engine and "-dev" not in engine:
                             engine.extend(["--device", "vulkan"])
@@ -262,7 +279,7 @@ class LlamaCppAdapter(BaseAdapter):
                 device_name=report.device_name,
                 vendor_id=report.vendor_id,
                 config=config,
-                status="BOUND_VULKAN",
+                status="CONFIGURED_VULKAN",
             )
         else:
             cpu_cores = os.cpu_count() or 8
@@ -302,6 +319,14 @@ class LlamaCppAdapter(BaseAdapter):
                     if hasattr(engine, "threads"):
                         engine.threads = big_cores
                 elif isinstance(engine, list):
+                    existing_ngl = _extract_cli_ngl(engine)
+                    if existing_ngl is not None and existing_ngl > 0:
+                        raise AmevaRuntimeError(
+                            f"[{LlamaCppAdapter.module_name}] Conflicting CLI arguments: CPU backend requested "
+                            f"but existing arguments specify -ngl {existing_ngl} > 0."
+                        )
+                    if existing_ngl is None:
+                        engine.extend(["-ngl", "0"])
                     if "-t" not in engine and "--threads" not in engine:
                         engine.extend(["-t", str(big_cores)])
 
@@ -347,7 +372,7 @@ class LlamaCppAdapter(BaseAdapter):
                     if hasattr(engine, "device"):
                         engine.device = "cpu"
             except Exception as e:
-                logger.debug("[%s] Ignored exception during unbind: %s", LlamaCppAdapter.module_name, e)
+                logger.warning("[%s] Unbind failed: %s", LlamaCppAdapter.module_name, e)
 
     @classmethod
     def build_cli_args(
