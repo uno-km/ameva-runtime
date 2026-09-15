@@ -17,9 +17,9 @@ AMEVA-Runtime is a hardware abstraction layer (HAL) and compute orchestration en
 
 ### 6-Modality Acceleration Matrix
 
-| Modality | Engine Integration | Status (v2.6.2) | Hardware Acceleration Mechanism |
+| Modality | Engine Integration | Status (v2.6.3) | Hardware Acceleration Mechanism |
 | :--- | :--- | :---: | :--- |
-| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.6.2)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
+| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.6.3)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
 | **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
 | **3. TTS (Audio)** | MeloTTS / Piper / Kokoro / Supertonic | **Production** | Bionic Direct Vulkan (`/system/lib64/libvulkan.so`) & HiFi-GAN 32MB buffer temporal tiling (Adreno RTF 0.88x/0.264x, Mali RTF 0.18x~0.24x) |
 | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
