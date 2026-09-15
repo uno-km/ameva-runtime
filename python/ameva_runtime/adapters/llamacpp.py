@@ -223,16 +223,12 @@ class LlamaCppAdapter(BaseAdapter):
                             cfg.setdefault("flash_attn", True)
                             cfg.setdefault("threads", big_cores)
                         else:
-                            if hasattr(cfg, "n_gpu_layers"):
-                                cfg.n_gpu_layers = ngl
-                            if hasattr(cfg, "ngl"):
-                                cfg.ngl = ngl
-                            if hasattr(cfg, "device"):
-                                cfg.device = "vulkan"
-                            if hasattr(cfg, "flash_attn"):
-                                cfg.flash_attn = True
+                            setattr(cfg, "n_gpu_layers", ngl)
+                            setattr(cfg, "ngl", ngl)
+                            setattr(cfg, "device", "vulkan")
+                            setattr(cfg, "flash_attn", True)
                             if hasattr(cfg, "threads") and getattr(cfg, "threads", 0) == 0:
-                                cfg.threads = big_cores
+                                setattr(cfg, "threads", big_cores)
                     elif hasattr(engine, "ngl") or hasattr(engine, "n_gpu_layers"):
                         if hasattr(engine, "ngl"):
                             engine.ngl = ngl

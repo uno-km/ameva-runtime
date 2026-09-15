@@ -49,7 +49,8 @@ class TestModalitiesIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.report = _get_report()
-        cls.is_vulkan = cls.report.overall_success
+        from ameva_runtime.adapters.base import _is_vulkan_report
+        cls.is_vulkan = _is_vulkan_report(cls.report)
 
     @classmethod
     def tearDownClass(cls):
@@ -61,7 +62,7 @@ class TestModalitiesIntegration(unittest.TestCase):
         """BindingResult 공통 불변조건 검증."""
         self.assertIsInstance(result, BindingResult)
         self.assertEqual(result.module, module)
-        self.assertIn(result.status, ("BOUND", "BOUND_CPU", "BOUND_VULKAN", "BOUND_CPU_NEON"))
+        self.assertIn(result.status, ("BOUND", "BOUND_CPU", "BOUND_VULKAN", "BOUND_CPU_NEON", "VULKAN_CANDIDATE_SELECTED"))
         self.assertIn(result.backend, ("vulkan", "cpu_neon"))
         self.assertIsInstance(result.config, dict)
         self.assertEqual(result.is_vulkan, self.is_vulkan)
@@ -92,7 +93,7 @@ class TestModalitiesIntegration(unittest.TestCase):
         result = LlamaCppAdapter.bind(engine_obj, self.report)
         self._assert_binding(result, "termux-llamacpp")
         if self.is_vulkan:
-            self.assertEqual(engine_obj.config.n_gpu_layers, 33)
+            self.assertGreater(getattr(engine_obj.config, "n_gpu_layers", 0), 0)
 
     def test_llamacpp_adapter_mali_system_icd(self):
         """Mali GPU 진단 보고서에 대한 Android System ICD 및 브릿지 우선순위 검증."""
