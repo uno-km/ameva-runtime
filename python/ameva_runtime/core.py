@@ -263,6 +263,9 @@ class AmevaRuntime:
             "-b", str(plan.batch_size),
             "-c", str(plan.context_size),
             "--temp", str(temperature),
+            "--single-turn",
+            "--simple-io",
+            "--no-display-prompt",
         ]
 
         exec_env = resolve_inference_environment(plan, llama_cli)
@@ -279,6 +282,7 @@ class AmevaRuntime:
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
             env=exec_env,
             text=True,
             bufsize=1,
