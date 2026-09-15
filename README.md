@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/ameva-runtime.svg?style=flat-square&color=0369a1)](https://pypi.org/project/ameva-runtime/)
 [![Python](https://img.shields.io/pypi/pyversions/ameva-runtime.svg?style=flat-square)](https://pypi.org/project/ameva-runtime/)
 [![npm](https://img.shields.io/npm/v/@ameva/runtime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
-[![GitHub Release](https://img.shields.io/github/v/release/uno-km/ameva-runtime?style=flat-square&color=0969da)](https://github.com/uno-km/ameva-runtime/releases/tag/v2.5.0)
+[![GitHub Release](https://img.shields.io/github/v/release/uno-km/ameva-runtime?style=flat-square&color=0969da)](https://github.com/uno-km/ameva-runtime/releases/tag/v2.7.0)
 [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
 <img src="https://img.shields.io/badge/BitNet%201.58b-Vulkan%20Compute%20Accelerated-purple.svg?logo=vulkan&logoColor=white" alt="BitNet Vulkan">
 
@@ -17,11 +17,11 @@ AMEVA-Runtime is a hardware abstraction layer (HAL) and compute orchestration en
 
 ### 6-Modality Acceleration Matrix
 
-| Modality | Engine Integration | Status (v2.6.3) | Hardware Acceleration Mechanism |
+| Modality | Engine Integration | Status (v2.7.0) | Hardware Acceleration Mechanism |
 | :--- | :--- | :---: | :--- |
-| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.6.3)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
-| **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
-| **3. TTS (Audio)** | MeloTTS / Piper / Kokoro / Supertonic | **Production** | Bionic Direct Vulkan (`/system/lib64/libvulkan.so`) & HiFi-GAN 32MB buffer temporal tiling (Adreno RTF 0.88x/0.264x, Mali RTF 0.18x~0.24x) |
+| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.7.0)** | Vulkan 25/25 layer VRAM offload (`ngl=999`), BitNet full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) & strict `AmbiguousModelMatchError` |
+| **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production (v2.7.0 / STT v1.2.7)** | Vulkan GPU acceleration with greedy decoding default (`-bs 1`), 6-SoC fleet validated (Adreno 3.73x, Mali 2.26x) |
+| **3. TTS (Audio)** | MeloTTS / Piper / Kokoro / Supertonic | **Production (v2.7.0 / TTS v1.5.0)** | Bionic Direct Vulkan (`/system/lib64/libvulkan.so`) & HiFi-GAN 32MB buffer temporal tiling (Adreno RTF 0.88x/0.264x, Mali RTF 0.18x~0.24x) |
 | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
 | **5. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **In Development** | On-device Vulkan UNet & DiT tensor offload |
 | **6. Train (Training)** | On-Device LoRA / QLoRA | **In Development** | Mobile Vulkan gradient descent backpropagation |
@@ -42,6 +42,8 @@ Tested on physical devices running Android 16 under Termux ARM64:
 ### 2. Speech-to-Text (Whisper Large-v3-Turbo Q5_0, 548MB)
 | Target Device | Hardware Architecture | Backend Mode | Latency (1-min audio) | GPU Load | CPU Load | Speedup |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | Vulkan GPU | **4.40 s (0.07x RTF)** | Adreno Turbo | ~12% | **18.5x (vs CPU)** |
+| **Galaxy S22** | Snapdragon 8 Gen 1 / Adreno 730 | Vulkan GPU | **5.13 s (Encoder)** | Adreno Native | ~14% | **3.73x (vs CPU)** |
 | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | Vulkan GPU | **360.60 s (6m 00s)** | **949 MHz (100%)** | 20~30% | **2.26x (56% time saved)** |
 | **Galaxy A35** | Cortex-A78 x4 Cores | CPU-NEON | 816.48 s (13m 36s) | 0% | 291% | Baseline |
 
@@ -70,7 +72,7 @@ Tested on physical devices running Android 16 under Termux ARM64:
 2. **Qualcomm Adreno 830 JIT Register Bug**: Bounded vector column specialization (`mul_mat_vec_max_cols = 2`), preventing compiler crash `VK_ERROR_UNKNOWN (-13)`.
 3. **Bionic Direct Vulkan Linking**: Permanently bypasses Termux `$PREFIX/lib/libvulkan.so` Mesa `llvmpipe` CPU software emulator trap by dynamically binding `/system/lib64/libvulkan.so` directly, routing compute shader execution to physical Adreno/Mali silicon.
 4. **Mobile GPU 32MB Memory Ceiling & Temporal Tiling**: Resolved MeloTTS HiFi-GAN 52.4MB buffer overflow (`VK_ERROR_OUT_OF_DEVICE_MEMORY` / kernel TDR kill) via temporal chunk slicing ($T_{\text{chunk}} \le 819$) and Piper VITS on-chip SRAM tiling.
-5. **Zero-Silent-Fallback**: Guaranteed fail-fast architecture without silent CPU degradation upon GPU driver faults.
+5. **Zero-Silent-Fallback & Strict Model Resolution**: Guaranteed fail-fast architecture without silent CPU degradation. Explicitly raises `AmbiguousModelMatchError` on multi-model ambiguity and rejects silent guessing.
 
 ---
 

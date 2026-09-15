@@ -17,7 +17,11 @@ from typing import Any, Optional, Dict, List
 from .detector import detect_hardware, HardwareProfile
 from .router import SmartRouter, ExecutionPlan, get_router
 from .protocol import BindingResult
-from .exceptions import AmevaRuntimeError
+from .exceptions import (
+    AmevaRuntimeError,
+    ModelNotFoundError,
+    AmbiguousModelMatchError,
+)
 
 logger = logging.getLogger("ameva_runtime.core")
 
@@ -39,10 +43,23 @@ class ExecutionResult:
 
 
 def resolve_model_path(model_arg: str) -> str:
-    """Resolves model path from direct path or standard Termux storage locations."""
-    if os.path.exists(model_arg):
+    """Resolves model path from direct path or standard Termux storage locations.
+
+    Adheres strictly to Zero-Silent-Fallback:
+    - Direct file path or exact match in candidates is adopted.
+    - Fuzzy match (*{model_arg}*.gguf):
+        - Exactly 1 candidate found: adopted.
+        - Multiple candidates found: raises AmbiguousModelMatchError (no implicit coercion/fallback).
+        - No candidates found: raises ModelNotFoundError with searched directories.
+    """
+    if not model_arg or not str(model_arg).strip():
+        raise ModelNotFoundError(model_arg or "<empty>")
+
+    # 1. Direct explicit file path
+    if os.path.isfile(model_arg):
         return os.path.abspath(model_arg)
-    
+
+    # 2. Exact candidates
     candidates = [
         os.path.expanduser(f"~/.termux-llama/models/{model_arg}"),
         os.path.expanduser(f"~/.termux-llama/models/{model_arg}.gguf"),
@@ -52,23 +69,40 @@ def resolve_model_path(model_arg: str) -> str:
         os.path.expanduser(f"~/models/{model_arg}.gguf"),
     ]
     for c in candidates:
-        if os.path.exists(c):
+        if os.path.isfile(c):
             return os.path.abspath(c)
 
-    # Glob search in standard model folders
+    # 3. Canonical Search Directories (Deduplicated)
     import glob
-    search_dirs = [
+    raw_search_dirs = [
         os.path.expanduser("~/.termux-llama/models"),
         "/data/data/com.termux/files/home/.termux-llama/models",
         os.path.expanduser("~/models"),
     ]
-    for sdir in search_dirs:
-        if os.path.isdir(sdir):
-            matches = glob.glob(os.path.join(sdir, f"*{model_arg}*.gguf"))
-            if matches:
-                return os.path.abspath(sorted(matches)[0])
+    canonical_search_dirs: List[str] = []
+    seen_dirs = set()
+    for sdir in raw_search_dirs:
+        expanded = os.path.expanduser(sdir)
+        if os.path.isdir(expanded):
+            real_dir = os.path.realpath(expanded)
+            if real_dir not in seen_dirs:
+                seen_dirs.add(real_dir)
+                canonical_search_dirs.append(real_dir)
 
-    return model_arg
+    all_matches: set[str] = set()
+    for sdir in canonical_search_dirs:
+        matches = glob.glob(os.path.join(sdir, f"*{model_arg}*.gguf"))
+        for m in matches:
+            if os.path.isfile(m):
+                all_matches.add(os.path.realpath(m))
+
+    match_list = sorted(list(all_matches))
+    if len(match_list) == 1:
+        return match_list[0]
+    elif len(match_list) > 1:
+        raise AmbiguousModelMatchError(model_arg, match_list)
+    else:
+        raise ModelNotFoundError(model_arg, canonical_search_dirs)
 
 
 
@@ -79,6 +113,8 @@ def find_inference_binary() -> Optional[str]:
         return found_in_path
 
     search_paths = [
+        os.path.expanduser("~/.termux-llama/current/bin/llama-cli"),
+        "/data/data/com.termux/files/home/.termux-llama/current/bin/llama-cli",
         os.path.expanduser("~/vulkan-llama/bin/llama-cli"),
         "/data/data/com.termux/files/home/vulkan-llama/bin/llama-cli",
         os.path.expanduser("~/.termux-llama/bin/llama-cli"),
@@ -108,6 +144,7 @@ def resolve_inference_environment(plan: ExecutionPlan, binary_path: str) -> Dict
         os.path.abspath(os.path.join(bin_dir, "..", "src")),
         bin_dir,
         os.path.abspath(os.path.join(bin_dir, "..", "lib")),
+        os.path.expanduser("~/.termux-llama/current/lib"),
         os.path.expanduser("~/vulkan-llama/ggml/src"),
         os.path.expanduser("~/vulkan-llama/src"),
         os.path.expanduser("~/.termux-llama/lib"),
@@ -142,7 +179,7 @@ class AmevaRuntime:
             cls._instance = cls()
         return cls._instance
 
-    def bind_engine(self, module_name: str, engine: Any = None) -> BindingResult:
+    def bind_engine(self, module_name: str, engine: Any = None, **kwargs: Any) -> BindingResult:
         """Dynamically binds an engine instance using the appropriate modality adapter."""
         from .adapters import (
             LlamaCppAdapter,
@@ -174,11 +211,20 @@ class AmevaRuntime:
                 f"Unknown module '{module_name}'. Supported modules: {list(adapter_map.keys())}"
             )
 
-        return adapter.bind(engine=engine, profile=self.profile)
+        return adapter.bind(engine=engine, profile=self.profile, **kwargs)
 
-    def plan_execution(self, model_name: str = "", requested_backend: str | None = None) -> ExecutionPlan:
+    def plan_execution(
+        self,
+        model_name: str = "",
+        requested_backend: str | None = None,
+        requested_ngl: int | None = None,
+    ) -> ExecutionPlan:
         """Returns an ExecutionPlan for running inference."""
-        return self.router.route_for_llm(model_name_or_path=model_name, requested_backend=requested_backend)
+        return self.router.route_for_llm(
+            model_name_or_path=model_name,
+            requested_backend=requested_backend,
+            requested_ngl=requested_ngl,
+        )
 
     def execute(
         self,
@@ -187,10 +233,15 @@ class AmevaRuntime:
         max_tokens: int = 64,
         temperature: float = 0.7,
         backend: str | None = None,
+        ngl: int | None = None,
         stream_output: bool = True,
     ) -> ExecutionResult:
         """Executes model inference safely and returns structured performance telemetry."""
-        plan = self.plan_execution(model_name=model_path, requested_backend=backend)
+        plan = self.plan_execution(
+            model_name=model_path,
+            requested_backend=backend,
+            requested_ngl=ngl,
+        )
 
         llama_cli = find_inference_binary()
         if not llama_cli:
@@ -288,8 +339,8 @@ class VulkanContext:
         self.is_valid = (self.profile.recommended_backend == "vulkan")
         self.device_name = self.profile.gpu_family
 
-    def bind(self, module_name: str, engine: Any = None) -> BindingResult:
-        return self.runtime.bind_engine(module_name, engine)
+    def bind(self, module_name: str, engine: Any = None, **kwargs: Any) -> BindingResult:
+        return self.runtime.bind_engine(module_name, engine, **kwargs)
 
 
 def get_runtime() -> AmevaRuntime:
@@ -311,6 +362,7 @@ def run(
     max_tokens: int = 64,
     temperature: float = 0.7,
     backend: str | None = None,
+    ngl: int | None = None,
 ) -> ExecutionResult:
     """Top-level 1-liner to execute inference on optimal hardware."""
     return get_runtime().execute(
@@ -319,10 +371,19 @@ def run(
         max_tokens=max_tokens,
         temperature=temperature,
         backend=backend,
+        ngl=ngl,
     )
 
 
-def plan(model: str = "", backend: str | None = None) -> ExecutionPlan:
+def plan(
+    model: str = "",
+    backend: str | None = None,
+    ngl: int | None = None,
+) -> ExecutionPlan:
     """Top-level helper to preview hardware execution plan."""
-    return get_runtime().plan_execution(model_name=model, requested_backend=backend)
+    return get_runtime().plan_execution(
+        model_name=model,
+        requested_backend=backend,
+        requested_ngl=ngl,
+    )
 

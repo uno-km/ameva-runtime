@@ -18,34 +18,70 @@ from .base import (
     get_vulkan_env,
     BaseAdapter,
 )
-from ..exceptions import AmevaRuntimeError
+from ..exceptions import AmevaRuntimeError, PlatformNotSupportedError
 
 logger = logging.getLogger("ameva_runtime.adapters.llamacpp")
 
+CPU_FALLBACK_PATTERNS = (
+    "no gpu found",
+    "using cpu backend",
+    "falling back to cpu",
+    "fallback to cpu",
+    "vulkan initialization failed",
+    "failed to initialize vulkan",
+    "no vulkan device",
+    "backend unavailable",
+    "ggml_vulkan: failed",
+    "ggml_vulkan: cannot",
+)
 
-def _calculate_llama_layers(engine: Any) -> int:
-    """Dynamically determines optimal GPU offload layers for GGUF LLMs."""
+VULKAN_INIT_PATTERNS = (
+    "ggml_vulkan: using device",
+    "ggml_vulkan: found 1 vulkan device",
+    "ggml_vulkan: found",
+)
+
+
+def verify_vulkan_llm_output(output: str) -> None:
+    """Strict Zero-Silent-Fallback: Validates inference output stream against CPU fallback.
+    
+    Raises:
+        PlatformNotSupportedError: If CPU fallback or absence of Vulkan initialization is detected.
+    """
+    lowered = output.lower()
+    for pat in CPU_FALLBACK_PATTERNS:
+        if pat in lowered:
+            raise PlatformNotSupportedError(
+                f"[termux-llamacpp] CPU fallback detected under Vulkan mode: '{pat}'.\n"
+                f"Execution halted strictly under Zero-Silent-Fallback policy."
+            )
+    if not any(pat in lowered for pat in VULKAN_INIT_PATTERNS):
+        raise PlatformNotSupportedError(
+            "[termux-llamacpp] No positive Vulkan initialization logged during LLM inference.\n"
+            "Execution halted strictly without silent CPU fallback."
+        )
+
+
+def _calculate_llama_layers(engine: Any = None, requested_ngl: int | None = None) -> int:
+    """Determines GPU offload layers for GGUF LLMs.
+    
+    Zero-String-Heuristics Principle:
+    - If user explicitly specified requested_ngl, enforce it unconditionally (caller assumes full responsibility for OOM).
+    - If engine config specifies ngl, use that value directly.
+    - If no layer count was specified, default to 999 (delegates to upstream llama.cpp automatic clamp).
+    """
+    if requested_ngl is not None:
+        return int(requested_ngl)
     if engine is not None:
-        if isinstance(engine, dict) and "ngl" in engine and engine["ngl"] > 0:
+        if isinstance(engine, dict) and "ngl" in engine and engine["ngl"] is not None:
             return int(engine["ngl"])
-        if hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", 0) > 0:
+        if hasattr(engine, "n_gpu_layers") and getattr(engine, "n_gpu_layers", None) is not None:
             return int(engine.n_gpu_layers)
-        if hasattr(engine, "ngl") and getattr(engine, "ngl", 0) > 0:
+        if hasattr(engine, "ngl") and getattr(engine, "ngl", None) is not None:
             return int(engine.ngl)
-        if hasattr(engine, "n_layers") and getattr(engine, "n_layers", 0) > 0:
+        if hasattr(engine, "n_layers") and getattr(engine, "n_layers", None) is not None:
             return int(engine.n_layers)
-        model_name = str(getattr(engine, "model", "") or getattr(engine, "model_path", "")).lower()
-        if "1b" in model_name or "0.5b" in model_name:
-            return 16
-        elif "3b" in model_name or "2b" in model_name:
-            return 24
-        elif "7b" in model_name or "8b" in model_name:
-            return 32
-        elif "13b" in model_name or "14b" in model_name:
-            return 40
-        elif "70b" in model_name:
-            return 80
-    return 33
+    return 999
 
 
 class LlamaCppAdapter(BaseAdapter):
@@ -69,19 +105,28 @@ class LlamaCppAdapter(BaseAdapter):
         report: Any = None,
         profile: Any = None,
         requested_backend: str | None = None,
+        requested_ngl: int | None = None,
         **kwargs: Any,
     ) -> BindingResult:
         report = resolve_diagnostic_report(report, profile)
         is_vk = _is_vulkan_report(report)
-        if requested_backend in ("cpu", "cpu_neon"):
-            is_vk = False
-        else:
+
+        # Strict Rule: Only 'auto' or None allows adaptive CPU routing when Vulkan is unavailable.
+        # Explicit 'vulkan' or 'gpu' strictly refuses any CPU fallback and raises PlatformNotSupportedError immediately.
+        req_norm = str(requested_backend or "").lower().strip()
+        if req_norm in ("vulkan", "gpu"):
             check_vulkan_availability_or_raise(
                 LlamaCppAdapter.module_name,
                 report,
                 is_vk,
-                requested_backend,
+                "vulkan",
             )
+            is_vk = True
+        elif req_norm in ("cpu", "cpu_neon"):
+            is_vk = False
+        else:
+            # req_norm is 'auto' or None: strictly adaptive routing based on hardware profile
+            pass
 
         config: dict = {
             "module": LlamaCppAdapter.module_name,
@@ -92,7 +137,7 @@ class LlamaCppAdapter(BaseAdapter):
         if is_vk:
             cpu_cores = os.cpu_count() or 8
             big_cores = max(1, cpu_cores // 2)
-            ngl = _calculate_llama_layers(engine)
+            ngl = _calculate_llama_layers(engine, requested_ngl=requested_ngl)
             is_mali = (report.vendor_id == _MALI_VENDOR_ID or "Mali" in (report.device_name or ""))
             if is_mali or (report and report.is_hardware_vulkan()):
                 config["system_icd_prioritized"] = True

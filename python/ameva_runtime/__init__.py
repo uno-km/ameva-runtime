@@ -28,6 +28,8 @@ from .exceptions import (
     DeviceOOMError,
     ArchitectureUnsupportedError,
     InvalidAffinityError,
+    ModelNotFoundError,
+    AmbiguousModelMatchError,
 )
 from .installer import NativeAssetManager, provision_native_assets
 
@@ -64,6 +66,8 @@ __all__ = [
     "DeviceOOMError",
     "ArchitectureUnsupportedError",
     "InvalidAffinityError",
+    "ModelNotFoundError",
+    "AmbiguousModelMatchError",
     "vulkan",
 ]
 

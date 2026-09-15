@@ -88,3 +88,31 @@ class InvalidAffinityError(AmevaRuntimeError):
     def __init__(self, message: str, cause: str | None = None):
         super().__init__(message, error_code="ERR_INVALID_AFFINITY", cause=cause)
 
+
+class ModelNotFoundError(AmevaRuntimeError):
+    """Raised when the specified model cannot be resolved in any standard path."""
+    def __init__(self, model_arg: str, searched_dirs: list[str] | None = None):
+        msg = f"Model '{model_arg}' not found in candidate paths or search directories."
+        if searched_dirs:
+            msg += f" Searched directories: {searched_dirs}"
+        super().__init__(msg, error_code="ERR_MODEL_NOT_FOUND", cause=f"Model identifier '{model_arg}' does not exist on disk.")
+        self.model_arg = model_arg
+        self.searched_dirs = searched_dirs or []
+
+
+class AmbiguousModelMatchError(AmevaRuntimeError):
+    """Raised when a fuzzy model pattern matches multiple candidates, preventing unsafe implicit selection."""
+    def __init__(self, model_arg: str, candidates: list[str]):
+        msg = (
+            f"Fuzzy pattern '{model_arg}' matched {len(candidates)} candidate models. "
+            f"Implicit coercion is prohibited under Zero-Silent-Fallback policy. "
+            f"Please specify exact model filename or path: {candidates}"
+        )
+        super().__init__(
+            msg,
+            error_code="ERR_AMBIGUOUS_MODEL_MATCH",
+            cause=f"Multiple model candidates matched pattern: {candidates}"
+        )
+        self.model_arg = model_arg
+        self.candidates = candidates
+

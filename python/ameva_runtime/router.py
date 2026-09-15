@@ -111,7 +111,7 @@ class SmartRouter:
         # 1. Vulkan Route (Adreno or Desktop or Forced)
         if backend == "vulkan":
             is_gpu = True
-            ngl = requested_ngl if requested_ngl is not None else 99
+            ngl = requested_ngl if requested_ngl is not None else 999
             threads = self.profile.recommended_threads
 
             if self.profile.gpu_family == "mali":

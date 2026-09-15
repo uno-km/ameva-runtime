@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-09-15
+### Added & Hardened (Zero-Deception Compliance)
+- **Strict Model Resolution & Ambiguous Match Guard (`AmbiguousModelMatchError`)**:
+  - Implemented deterministic model path resolution in `LlamaCppAdapter.resolve_model_path`, checking candidate directories (`~/.termux-llama/models`, `~/models`, current directory).
+  - Explicitly raises `AmbiguousModelMatchError` when multiple candidates match, preventing silent arbitrary model selection and enumerating all candidates for the user.
+- **Vulkan GPU Layer Offloading Expansion (`requested_ngl=999`)**:
+  - Threaded `requested_ngl=999` across `AmevaRuntime.run`, `SmartRouter.dispatch`, and CLI arguments to ensure deterministic full-layer offloading to mobile GPUs without manual layer tuning.
+- **Termux-TTS v1.5.0 & Termux-STT v1.2.7 Ecosystem Alignment**:
+  - Synchronized `TtsAdapter` with Termux-TTS v1.5.0, removing legacy DSP dependencies and supporting native Vulkan MeloTTS temporal tiling.
+  - Aligned STT adapter with Termux-STT v1.2.7 greedy decoding policy (`--beam-size 1`), maintaining zero silent fallback across the 6-modality fleet.
+
+---
+
 ## [2.6.3] - 2026-09-15
 ### Added & Accelerated
 - **TTS Modality: Bionic Native Vulkan Direct Binding**:
