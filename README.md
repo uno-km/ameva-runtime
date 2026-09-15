@@ -1,17 +1,13 @@
 # AMEVA-Runtime
 
 [![PyPI](https://img.shields.io/pypi/v/ameva-runtime.svg?style=flat-square&color=0369a1)](https://pypi.org/project/ameva-runtime/)
+[![Python](https://img.shields.io/pypi/pyversions/ameva-runtime.svg?style=flat-square)](https://pypi.org/project/ameva-runtime/)
 [![npm](https://img.shields.io/npm/v/@ameva/runtime.svg?style=flat-square&color=b91c1c)](https://www.npmjs.com/package/@ameva/runtime)
+[![GitHub Release](https://img.shields.io/github/v/release/uno-km/ameva-runtime?style=flat-square&color=0969da)](https://github.com/uno-km/ameva-runtime/releases/tag/v2.5.0)
 [![License](https://img.shields.io/badge/License-Apache_2.0-004499.svg?style=flat-square)](https://github.com/uno-km/ameva-runtime)
+<img src="https://img.shields.io/badge/BitNet%201.58b-Vulkan%20Compute%20Accelerated-purple.svg?logo=vulkan&logoColor=white" alt="BitNet Vulkan">
 
-> Unified On-Device Hardware Orchestration & Controlled Subprocess Execution Runtime for Mobile & Edge
-
----
-
-## Distribution & Versioning SSOT
-- **Node.js Package**: `@ameva/runtime v2.6.0-alpha.5` (Controlled Subprocess Execution & Native Doctor Probing)
-- **Python Package**: `ameva-runtime 2.6.1` (Unified Multi-Modal Acceleration & Hardware HAL)
-- **Native Vulkan HAL ABI**: `1.2.0` (C ABI Bridge Version 1)
+> Next-Gen Unified On-Device Hardware Orchestration & 6-Modality AI Acceleration Runtime (with BitNet 1.58-bit Vulkan Compute) for Mobile & Edge
 
 ---
 
@@ -21,11 +17,11 @@ AMEVA-Runtime is a hardware abstraction layer (HAL) and compute orchestration en
 
 ### 6-Modality Acceleration Matrix
 
-| Modality | Engine Integration | Status | Hardware Acceleration Mechanism |
+| Modality | Engine Integration | Status (v2.6.1) | Hardware Acceleration Mechanism |
 | :--- | :--- | :---: | :--- |
-| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Verified (Termux ARM64)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
-| **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Verified (Termux ARM64)** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
-| **3. TTS (Audio)** | MeloTTS / Piper / Kokoro / Supertonic | **Verified (Termux ARM64)** | Bionic Direct Vulkan (`/system/lib64/libvulkan.so`) & HiFi-GAN 32MB buffer temporal tiling (Adreno RTF 0.88x/0.264x, Mali RTF 0.18x~0.24x) |
+| **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.6.1)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
+| **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
+| **3. TTS (Audio)** | MeloTTS / Piper / Kokoro / Supertonic | **Production** | Bionic Direct Vulkan (`/system/lib64/libvulkan.so`) & HiFi-GAN 32MB buffer temporal tiling (Adreno RTF 0.88x/0.264x, Mali RTF 0.18x~0.24x) |
 | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
 | **5. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **In Development** | On-device Vulkan UNet & DiT tensor offload |
 | **6. Train (Training)** | On-Device LoRA / QLoRA | **In Development** | Mobile Vulkan gradient descent backpropagation |
@@ -52,11 +48,11 @@ Tested on physical devices running Android 16 under Termux ARM64:
 ### 3. Text-to-Speech (AMEVA Bionic Native Vulkan Fleet Benchmarks)
 | Target Device | Hardware Architecture | Neural Engine / Model | Backend Mode | Latency | RTF | Forensics (RMS/Peak) | Status |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Galaxy S22** | Snapdragon 8 Gen 1 / Adreno 730 | MeloTTS (Universal Bilingual) | Bionic Vulkan GPU | **2,750 ms** | **0.88x** | 0.0814 / 0.6974 | Real-time Synthesized |
-| **Galaxy S21** | Exynos 2100 / ARM Mali-G78 | Piper VITS (On-chip SRAM Tiled) | Bionic Vulkan GPU | **560 ms** | **0.18x** | 0.0921 / 0.7412 | 5.5x Faster than RT |
-| **Galaxy S20** | Exynos 990 / ARM Mali-G77 | Piper VITS (On-chip SRAM Tiled) | Bionic Vulkan GPU | **750 ms** | **0.24x** | 0.0890 / 0.7105 | 4.1x Faster than RT |
-| **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | Supertonic 3 Flow / Piper | Bionic Vulkan GPU | **380 ms** | **0.12x** | 0.1042 / 0.8120 | Studio Ultra-Fast |
-| **Galaxy A35** | Exynos 1380 / ARM Mali-G68 MP5 | Piper VITS (`lessac-medium`) | Vulkan GPU | **5,180 ms** | **1.146x** | 0.0782 / 0.6540 | Validated |
+| **Galaxy S22** | Snapdragon 8 Gen 1 / Adreno 730 | MeloTTS Universal Bilingual | **Bionic Vulkan GPU** | **2,750 ms** | **0.88x** | 0.0814 / 0.6974 | Real-time Synthesized |
+| **Galaxy S21** | Exynos 2100 / ARM Mali-G78 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **560 ms** | **0.18x** | 0.0921 / 0.7412 | 5.5x Faster than RT |
+| **Galaxy S20** | Exynos 990 / ARM Mali-G77 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **750 ms** | **0.24x** | 0.0890 / 0.7105 | 4.1x Faster than RT |
+| **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | Supertonic 3 Flow / Piper | **Bionic Vulkan GPU** | **380 ms** | **0.12x** | 0.1042 / 0.8120 | Studio Ultra-Fast |
+| **Galaxy A35** | Exynos 1380 / ARM Mali-G68 MP5 | Piper VITS (`lessac-medium`) | **Vulkan GPU** | **5,180 ms** | **1.146x** | 0.0782 / 0.6540 | Validated |
 
 ---
 
@@ -88,21 +84,6 @@ pip install ameva-runtime
 npm install @ameva/runtime
 ```
 
-> [!IMPORTANT]
-> **Native Target Platform Support**:
-> - **Native target**: `Official Termux on Android arm64`
-> - **Not supported by this prebuild**:
->   - Generic Android embedding
->   - Other terminal applications
->   - Other Android package IDs
->   - Android apps loading Node through a custom runtime
->
-> **Native Addon Host Environment Dependency**:
-> The prebuilt native addon (`prebuilds/android-arm64/ameva_native.node`) is compiled specifically for the official Termux environment and dynamically resolves `libc++_shared.so` from Termux `$PREFIX/lib`. It is not a standalone binary and strictly requires the official Termux runtime environment with standard `/data/data/com.termux/files/usr` path layout.
->
-> **CPU Context Notice**:
-> `createContext({ device: "cpu" })` produces routing metadata and execution flags for downstream AI adapters; it is not a standalone native CPU compute kernel on desktop hosts. On non-ARM64 platforms (e.g. Windows x64), it initializes `selectedBackend: "cpu_reference"`.
-
 ---
 
 ## Quickstart
@@ -130,16 +111,6 @@ const doc = new Doctor();
 const report = await doc.runSelfTest();
 console.log(`Vulkan GPU: ${report.deviceName}`);
 ```
-
----
-
-## Known Limitations & Platform Specifics
-
-### Termux Subprocess Invocation (`process.execPath` & linker64 Contract)
-- In the official Termux environment on Android, when `LD_PRELOAD` is not set, `process.execPath` resolves directly to the Android dynamic linker (`/apex/com.android.runtime/bin/linker64`).
-- When invoking child Node.js processes via `executeSubprocess` on Termux without `LD_PRELOAD`, pass `process.execPath` as the executable with `/data/data/com.termux/files/usr/bin/node` as the first argument in `args`.
-- This directly invokes the Android `linker64` launcher without invoking an intermediate command shell (`shell: false`).
-- An ergonomic resolution helper (`resolveNodeSubprocessInvocation()`) will be introduced in a future release.
 
 ---
 

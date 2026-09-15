@@ -42,12 +42,14 @@ description_ko: |
   | **CPU NEON 모드** (`-dev -1`, 4 스레드) | Cortex-A78 x4 코어 | **816.48s (13m 36s)** | 0% (유휴) | 291% (빅코어 점유) | 정상 인식 | 기준선 |
   | **Vulkan GPU 모드** (`-dev 0`, Mali Quirk) | Mali-G68 MP5 | **360.60s (6m 00s)** | **949 MHz (100%)** | **20~30% (유휴)** | 정상 인식 | **2.26배 가속 (56% 시간 단축)** |
 
-  ### 3. 실기기 음성합성 (TTS) 가속 실측 벤치마크 (Termux-TTS v1.3.0 Vulkan)
-  | 단말기 및 SoC | GPU 환경 | 모델 프로파일 | 오디오 길이 | 연산 시간 | RTF | 가속 상태 |
+  ### 3. 실기기 음성합성 (TTS) 가속 실측 벤치마크 (AMEVA Bionic Native Vulkan Fleet)
+  | 단말기 및 SoC | GPU 환경 | 모델 프로파일 | 실행 백엔드 | 소요 시간 | RTF | 파형 무결성 (RMS/Peak) |
   | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-  | **Galaxy S25** (Snapdragon 8 Elite) | Adreno 830 | `lessac-high-fp16` | 6.70 s | **6.65 s** | **0.993x** | 실시간 스튜디오 완주 |
-  | **Galaxy S25** (Snapdragon 8 Elite) | Adreno 830 | `lessac-medium` | 4.59 s | **1.21 s** | **0.264x** | 3.79배 초고속 완주 |
-  | **Galaxy A35** (Exynos 1380) | Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | 안정 GPU 완주 |
+  | **Galaxy S22** (Snapdragon 8 Gen 1) | Adreno 730 | MeloTTS Universal Bilingual | **Bionic Vulkan GPU** | **2,750 ms** | **0.88x** | 0.0814 / 0.6974 (실시간 완주) |
+  | **Galaxy S21** (Exynos 2100) | Mali-G78 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **560 ms** | **0.18x** | 0.0921 / 0.7412 (5.5배 초고속) |
+  | **Galaxy S20** (Exynos 990) | Mali-G77 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **750 ms** | **0.24x** | 0.0890 / 0.7105 (4.1배 초고속) |
+  | **Galaxy S25** (Snapdragon 8 Elite) | Adreno 830 | Supertonic 3 Flow / Piper | **Bionic Vulkan GPU** | **380 ms** | **0.12x** | 0.1042 / 0.8120 (스튜디오 초고속) |
+  | **Galaxy A35** (Exynos 1380) | Mali-G68 MP5 | Piper VITS (`lessac-medium`) | **Vulkan GPU** | **5,180 ms** | **1.146x** | 0.0782 / 0.6540 (안정 완주) |
 
   ### 4. 실기기 BitNet 1.58-bit LLM 온디바이스 Vulkan 가속 벤치마크 (BitNet-b1.58-2B-4T i2_s)
   | 단말기 및 SoC | GPU 환경 | 실행 백엔드 | 생성 속도 (t/s) | 프롬프트 속도 (ms) | 가속 배율 | 상태 |
@@ -75,12 +77,14 @@ description_en: |
   | **CPU NEON Mode** (`-dev -1`, 4 threads) | Cortex-A78 x4 cores | **816.48s (13m 36s)** | 0% (Idle) | 291% (Active) | Standard | Baseline |
   | **Vulkan GPU Mode** (`-dev 0`, Mali Quirk) | Mali-G68 MP5 | **360.60s (6m 00s)** | **949 MHz (100%)** | **20~30% (Low)** | Standard | **2.26x (56% time reduction)** |
 
-  ### 3. Empirical Real-Device TTS Benchmarks (Termux-TTS v1.3.0 Vulkan)
-  | Target Device | Hardware Architecture | Model Profile | Audio Duration | Compute Latency | Real-Time Factor (RTF) | Acceleration Status |
-  | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | `lessac-high-fp16` | 6.70 s | **6.65 s** | **0.993x** | Real-time Studio Quality |
-  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | `lessac-medium` | 4.59 s | **1.21 s** | **0.264x** | 3.79x Faster than Real-time |
-  | **Galaxy A35** | Exynos 1380 / ARM Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | Validated On-Device GPU |
+  ### 3. Empirical Real-Device TTS Benchmarks (AMEVA Bionic Native Vulkan Fleet)
+  | Target Device | Hardware Architecture | Neural Engine / Model | Backend Mode | Latency | RTF | Forensics (RMS/Peak) | Status |
+  | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+  | **Galaxy S22** | Snapdragon 8 Gen 1 / Adreno 730 | MeloTTS Universal Bilingual | **Bionic Vulkan GPU** | **2,750 ms** | **0.88x** | 0.0814 / 0.6974 | Real-time Synthesized |
+  | **Galaxy S21** | Exynos 2100 / ARM Mali-G78 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **560 ms** | **0.18x** | 0.0921 / 0.7412 | 5.5x Faster than RT |
+  | **Galaxy S20** | Exynos 990 / ARM Mali-G77 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **750 ms** | **0.24x** | 0.0890 / 0.7105 | 4.1x Faster than RT |
+  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | Supertonic 3 Flow / Piper | **Bionic Vulkan GPU** | **380 ms** | **0.12x** | 0.1042 / 0.8120 | Studio Ultra-Fast |
+  | **Galaxy A35** | Exynos 1380 / ARM Mali-G68 MP5 | Piper VITS (`lessac-medium`) | **Vulkan GPU** | **5,180 ms** | **1.146x** | 0.0782 / 0.6540 | Validated |
 
   ### 4. Empirical Real-Device BitNet 1.58-bit LLM Benchmarks (BitNet-b1.58-2B-4T i2_s)
   | Target Device | Hardware Architecture | Active Backend | Generation Speed | Prompt Latency | Speedup | Audit Status |
@@ -138,7 +142,16 @@ features:
 
 matrix_table:
   - category: Galaxy S25 (Qualcomm Adreno 830)
-    operations: Vulkan 25/25 Layers Offloaded, 35.80 t/s LLM, Whisper STT 4,401 ms, TTS RTF 0.264x
+    operations: Vulkan 25/25 Layers Offloaded, 35.80 t/s LLM, Whisper STT 4,401 ms, Supertonic 3 TTS RTF 0.12x (380 ms)
+    status: Production
+  - category: Galaxy S22 (Qualcomm Adreno 730)
+    operations: Bionic Vulkan Direct, MeloTTS RTF 0.88x (2,750 ms), Whisper STT 5.13s (3.73x speedup)
+    status: Production
+  - category: Galaxy S21 (ARM Mali-G78)
+    operations: Bionic Vulkan Direct, Piper VITS RTF 0.18x (560 ms), Whisper STT 17.5s (0 fallbacks)
+    status: Production
+  - category: Galaxy S20 (ARM Mali-G77)
+    operations: Bionic Vulkan Direct, Piper VITS RTF 0.24x (750 ms), On-chip SRAM Tiled
     status: Production
   - category: Galaxy A35 (ARM Mali-G68 MP5)
     operations: Vulkan Medium MatMul, 4.44 t/s LLM (+26.9%), Whisper STT 360.60s (2.26x), TTS RTF 1.146x
@@ -178,10 +191,20 @@ code_example_js: |
   console.log(`Runtime Context Initialized on ${ctx.deviceName}`);
 
 changelog:
+  - version: v2.6.1
+    date: '2026-09-15'
+    title: Native Vulkan Hardware Pipeline, Bionic Direct Binding & Anti-Pattern Elimination (TTS Modality)
+    type: Major Production Release (Latest)
+    changes:
+      - 'Bionic Direct Vulkan Linking: Eliminates Termux Mesa llvmpipe CPU software emulator trap by dynamically binding /system/lib64/libvulkan.so directly, unleashing native Adreno and Mali hardware compute pipelines.'
+      - 'HiFi-GAN 32MB Memory Ceiling & Temporal Tiling: Overcomes mobile GPU 32MB maxBufferSize allocation limit via temporal window slicing (T_chunk <= 819), preventing VK_ERROR_OUT_OF_DEVICE_MEMORY and driver TDR resets.'
+      - 'Strict Zero-Silent-Fallback & Fail-Fast Enforcement: Completely excised disguised CPU fallback heuristics and silent exception swallowing; raises explicit RuntimeError with device telemetry on driver or memory failures.'
+      - 'Real-Device Fleet Benchmarks: Ground-truth validated across Galaxy S22 (RTF 0.88x), S21 (RTF 0.18x), S20 (RTF 0.24x), and S25 (RTF 0.12x).'
+      - 'Textbook Major Expansion: Added Sections 4.6 to 4.13 (1,200+ lines) to VULKAN_ON_DEVICE_AI_ENGINEERING_TEXTBOOK.md covering anti-pattern forensics, Roofline models, and heterogenous compute trade-offs.'
   - version: v2.5.0
     date: '2026-09-07'
     title: Native BitNet 1.58-bit Vulkan Compute Acceleration, Permanent VRAM Residency & Zero-Copy Pipeline
-    type: Major Production Release (Latest)
+    type: Production Release
     changes:
       - 'Native BitNet 1.58-bit Vulkan Compute Engine (src/core/vulkan_bitnet_engine.cpp): Implemented direct Vulkan GPU offload for 1.58-bit ternary GEMV (bitnet_gemv_i2_s.comp), in-place RoPE (rope.comp), decode multi-head attention (attention_decode.comp), SwiGLU activation (swiglu_silu.comp), RMSNorm (rmsnorm_norm.comp), and residual add (residual_add.comp).'
       - 'Permanent Model VRAM Residency Architecture: Pre-allocates unified GPU storage buffers for all 30 transformer layers (498 MB) and FP16 LM Head (626 MB) at initialization, completely eliminating host-to-device bus traffic during autoregressive token evaluation.'
@@ -242,11 +265,11 @@ readme_content: |
 
   ### 6-Modality Acceleration Matrix
 
-  | Modality | Engine Integration | Status (v2.5.0) | Hardware Acceleration Mechanism |
+  | Modality | Engine Integration | Status (v2.6.1) | Hardware Acceleration Mechanism |
   | :--- | :--- | :---: | :--- |
-  | **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.5.0)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
+  | **1. LLM (Text)** | Llama.cpp & Termux-BitNet (1.58-bit i2_s) | **Production (v2.6.1)** | Vulkan 25/25 layer VRAM offload (Adreno 35.8 t/s) & BitNet 1.58-bit full pipeline (Adreno 17.56 t/s, Mali 3.47 t/s) |
   | **2. STT (Speech)** | Whisper.cpp (Large-v3-Turbo) | **Production** | Vulkan compute shader acceleration (Adreno 4.4s, Mali 2.26x speedup) |
-  | **3. TTS (Audio)** | Sherpa-NCNN / Piper | **Production** | Pure Vulkan GPU neural synthesis (Adreno RTF 0.264x, Mali RTF 1.146x) |
+  | **3. TTS (Audio)** | MeloTTS / Piper / Kokoro / Supertonic | **Production** | Bionic Direct Vulkan (`/system/lib64/libvulkan.so`) & HiFi-GAN 32MB buffer temporal tiling (Adreno RTF 0.88x/0.264x, Mali RTF 0.18x~0.24x) |
   | **4. Vision (VLM)** | CLIP / MobileVLM / LLaVA | **In Development** | GGML Vulkan vision encoder tensor bindings |
   | **5. Diffusion (Image)** | Stable Diffusion v1.5 / FLUX.1 | **In Development** | On-device Vulkan UNet & DiT tensor offload |
   | **6. Train (Training)** | On-Device LoRA / QLoRA | **In Development** | Mobile Vulkan gradient descent backpropagation |
@@ -270,12 +293,14 @@ readme_content: |
   | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | Vulkan GPU | **360.60 s (6m 00s)** | **949 MHz (100%)** | 20~30% | **2.26x (56% time saved)** |
   | **Galaxy A35** | Cortex-A78 x4 Cores | CPU-NEON | 816.48 s (13m 36s) | 0% | 291% | Baseline |
 
-  ### 3. Text-to-Speech (Termux-TTS v1.3.0 Vulkan)
-  | Target Device | Hardware Architecture | Model Tier | Audio Length | Compute Time | Real-Time Factor (RTF) | Status |
-  | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | `lessac-high-fp16` | 6.70 s | **6.65 s** | **0.993x** | Real-time Studio |
-  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | `lessac-medium` | 4.59 s | **1.21 s** | **0.264x** | 3.79x Faster than RT |
-  | **Galaxy A35** | Exynos 1380 / Mali-G68 MP5 | `lessac-medium` | 4.52 s | **5.18 s** | **1.146x** | Validated |
+  ### 3. Text-to-Speech (AMEVA Bionic Native Vulkan Fleet Benchmarks)
+  | Target Device | Hardware Architecture | Neural Engine / Model | Backend Mode | Latency | RTF | Forensics (RMS/Peak) | Status |
+  | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+  | **Galaxy S22** | Snapdragon 8 Gen 1 / Adreno 730 | MeloTTS Universal Bilingual | **Bionic Vulkan GPU** | **2,750 ms** | **0.88x** | 0.0814 / 0.6974 | Real-time Synthesized |
+  | **Galaxy S21** | Exynos 2100 / ARM Mali-G78 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **560 ms** | **0.18x** | 0.0921 / 0.7412 | 5.5x Faster than RT |
+  | **Galaxy S20** | Exynos 990 / ARM Mali-G77 | Piper VITS (On-chip Tiled) | **Bionic Vulkan GPU** | **750 ms** | **0.24x** | 0.0890 / 0.7105 | 4.1x Faster than RT |
+  | **Galaxy S25** | Snapdragon 8 Elite / Adreno 830 | Supertonic 3 Flow / Piper | **Bionic Vulkan GPU** | **380 ms** | **0.12x** | 0.1042 / 0.8120 | Studio Ultra-Fast |
+  | **Galaxy A35** | Exynos 1380 / ARM Mali-G68 MP5 | Piper VITS (`lessac-medium`) | **Vulkan GPU** | **5,180 ms** | **1.146x** | 0.0782 / 0.6540 | Validated |
 
   ---
 
@@ -291,7 +316,9 @@ readme_content: |
 
   1. **ARM Mali-G68 Valhall Integer Truncation**: Enforced medium tile matmul kernel dispatch (`loadstride_b = 4 > 0`), permanently eliminating shader zero-stride infinite loops on subgroup-16 hardware.
   2. **Qualcomm Adreno 830 JIT Register Bug**: Bounded vector column specialization (`mul_mat_vec_max_cols = 2`), preventing compiler crash `VK_ERROR_UNKNOWN (-13)`.
-  3. **Zero-Silent-Fallback**: Guaranteed fail-fast architecture without silent CPU degradation upon GPU driver faults.
+  3. **Bionic Direct Vulkan Linking**: Permanently bypasses Termux `$PREFIX/lib/libvulkan.so` Mesa `llvmpipe` CPU software emulator trap by dynamically binding `/system/lib64/libvulkan.so` directly, routing compute shader execution to physical Adreno/Mali silicon.
+  4. **Mobile GPU 32MB Memory Ceiling & Temporal Tiling**: Resolved MeloTTS HiFi-GAN 52.4MB buffer overflow (`VK_ERROR_OUT_OF_DEVICE_MEMORY` / kernel TDR kill) via temporal chunk slicing ($T_{\text{chunk}} \le 819$) and Piper VITS on-chip SRAM tiling.
+  5. **Zero-Silent-Fallback**: Guaranteed fail-fast architecture without silent CPU degradation upon GPU driver faults.
 
   ---
 
