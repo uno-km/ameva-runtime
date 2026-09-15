@@ -138,8 +138,8 @@ class LlamaCppAdapter(BaseAdapter):
             cpu_cores = os.cpu_count() or 8
             big_cores = max(1, cpu_cores // 2)
             ngl = _calculate_llama_layers(engine, requested_ngl=requested_ngl)
-            is_mali = (report.vendor_id == _MALI_VENDOR_ID or "Mali" in (report.device_name or ""))
-            if is_mali or (report and report.is_hardware_vulkan()):
+            is_mali = (report.vendor_id == _MALI_VENDOR_ID or "mali" in str(report.device_name or "").lower())
+            if is_mali or (report and getattr(report, "overall_success", False)):
                 config["system_icd_prioritized"] = True
                 config["bridge_active"] = False
 
