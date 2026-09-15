@@ -107,29 +107,13 @@ def resolve_model_path(model_arg: str) -> str:
 
 
 def find_inference_binary() -> Optional[str]:
-    """Locates llama-cli or compatible inference binary across PATH and mobile environments."""
-    search_paths = [
-        os.path.expanduser("~/.termux-llama/current/bin/llama-cli"),
-        "/data/data/com.termux/files/home/.termux-llama/current/bin/llama-cli",
-        os.path.expanduser("~/vulkan-llama/bin/llama-cli"),
-        "/data/data/com.termux/files/home/vulkan-llama/bin/llama-cli",
-        os.path.expanduser("~/.termux-llama/bin/llama-cli"),
-        "/data/data/com.termux/files/home/.termux-llama/bin/llama-cli",
-        os.path.expanduser("~/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli"),
-        "/data/data/com.termux/files/home/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli",
-        os.path.expanduser("~/llama.cpp/build/bin/llama-cli"),
-        "/data/data/com.termux/files/home/llama.cpp/build/bin/llama-cli",
-    ]
-    for p in search_paths:
-        real_p = os.path.realpath(p)
-        if os.path.isfile(real_p) and os.access(real_p, os.X_OK):
-            return real_p
-
-    found_in_path = shutil.which("llama-cli")
-    if found_in_path:
-        return found_in_path
-
-    return None
+    """Locates llama-cli inference binary strictly through LlamaCppAdapter without arbitrary search paths."""
+    from .adapters.llamacpp import LlamaCppAdapter
+    from .exceptions import AmevaLlamaAssetMissingError, AmevaLlamaVerificationError
+    try:
+        return LlamaCppAdapter.resolve_binary_path()
+    except (AmevaLlamaAssetMissingError, AmevaLlamaVerificationError):
+        return None
 
 
 def resolve_inference_environment(plan: ExecutionPlan, binary_path: str) -> Dict[str, str]:
@@ -140,14 +124,12 @@ def resolve_inference_environment(plan: ExecutionPlan, binary_path: str) -> Dict
     real_bin = os.path.realpath(binary_path)
     bin_dir = os.path.dirname(real_bin)
     candidate_dirs = [
+        os.path.abspath(os.path.join(bin_dir, "..", "lib")),
         os.path.abspath(os.path.join(bin_dir, "..", "ggml", "src")),
         os.path.abspath(os.path.join(bin_dir, "..", "src")),
         bin_dir,
-        os.path.abspath(os.path.join(bin_dir, "..", "lib")),
         os.path.expanduser("~/.termux-llama/current/lib"),
-        os.path.expanduser("~/vulkan-llama/ggml/src"),
-        os.path.expanduser("~/vulkan-llama/src"),
-        os.path.expanduser("~/.termux-llama/lib"),
+        os.path.expanduser("~/.local/lib"),
         "/data/data/com.termux/files/usr/lib",
     ]
     cur_ld = env.get("LD_LIBRARY_PATH", "")
@@ -243,11 +225,8 @@ class AmevaRuntime:
             requested_ngl=ngl,
         )
 
-        llama_cli = find_inference_binary()
-        if not llama_cli:
-            raise AmevaRuntimeError(
-                "llama-cli inference binary not found. Please install llama.cpp or termux-llama."
-            )
+        from .adapters.llamacpp import LlamaCppAdapter
+        llama_cli = LlamaCppAdapter.resolve_binary_path()
 
         resolved_model = resolve_model_path(model_path)
         if not os.path.exists(resolved_model):

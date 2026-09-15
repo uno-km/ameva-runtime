@@ -8,7 +8,7 @@ and hardware constraints must raise explicit, structured errors.
 from __future__ import annotations
 
 
-class AmevaRuntimeError(Exception):
+class AmevaRuntimeError(RuntimeError):
     """Base exception for all AMEVA Runtime errors."""
     def __init__(self, message: str, error_code: str = "ERR_AMEVA_UNKNOWN", cause: str | None = None):
         super().__init__(message)
@@ -115,4 +115,55 @@ class AmbiguousModelMatchError(AmevaRuntimeError):
         )
         self.model_arg = model_arg
         self.candidates = candidates
+
+
+# ==============================================================================
+# 8 Standard AMEVA-LLAMA Error Hierarchy (E001 - E008)
+# ==============================================================================
+class AmevaLlamaAssetMissingError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E001: Managed llama.cpp asset missing in canonical location."""
+    def __init__(self, message: str = "AMEVA-managed llama.cpp binary is not installed.", cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E001", cause=cause)
+
+
+class AmevaLlamaVerificationError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E002: Asset manifest or SHA-256 cryptographic verification failed."""
+    def __init__(self, message: str, cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E002", cause=cause)
+
+
+class AmevaLlamaVulkanBlockedError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E003: Vulkan LLM acceleration blocked on this device profile."""
+    def __init__(self, message: str, cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E003", cause=cause)
+
+
+class AmevaLlamaAbiError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E004: ELF ABI or DT_NEEDED dependency verification failed."""
+    def __init__(self, message: str, cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E004", cause=cause)
+
+
+class AmevaLlamaSmokeTestError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E005: Staged binary execution smoke test failed."""
+    def __init__(self, message: str, cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E005", cause=cause)
+
+
+class AmevaLlamaLinkActivationError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E006: Current release atomic symlink activation failed."""
+    def __init__(self, message: str, cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E006", cause=cause)
+
+
+class AmevaLlamaLockTimeoutError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E007: Asset provisioning lock acquisition failed or timed out."""
+    def __init__(self, message: str = "Timed out waiting for asset provisioning lock.", cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E007", cause=cause)
+
+
+class AmevaLlamaUnsafeArchiveError(AmevaRuntimeError):
+    """AMEVA-LLAMA-E008: Unsafe archive member or path traversal detected."""
+    def __init__(self, message: str, cause: str | None = None):
+        super().__init__(message, error_code="AMEVA-LLAMA-E008", cause=cause)
 

@@ -4,8 +4,11 @@ Zero-Silent-Fallback and Anti-Deception Compliant Engine Orchestrator
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from .base import (
@@ -19,7 +22,12 @@ from .base import (
     get_vulkan_env,
     BaseAdapter,
 )
-from ..exceptions import AmevaRuntimeError, PlatformNotSupportedError
+from ..exceptions import (
+    AmevaRuntimeError,
+    PlatformNotSupportedError,
+    AmevaLlamaAssetMissingError,
+    AmevaLlamaVerificationError,
+)
 
 logger = logging.getLogger("ameva_runtime.adapters.llamacpp")
 
@@ -315,6 +323,74 @@ class LlamaCppAdapter(BaseAdapter):
     def unbind(cls, engine: Any = None, binding_result: BindingResult | None = None) -> None:
         """Unbinds adapter and restores exact pre-binding configuration."""
         super().unbind(engine, binding_result)
+
+    @classmethod
+    def resolve_binary_path(cls) -> str:
+        """Resolves the single authoritative llama-cli binary path strictly without PATH or fallback search.
+
+        Canonical location: ~/.termux-llama/current/bin/llama-cli
+        - If binary missing: AmevaLlamaAssetMissingError (AMEVA-LLAMA-E001)
+        - If manifest missing, corrupt, or hash mismatch: AmevaLlamaVerificationError (AMEVA-LLAMA-E002)
+        - Returns canonical absolute path as str.
+        """
+        home = Path(os.environ.get("HOME", os.path.expanduser("~")))
+        canonical_root = home / ".termux-llama"
+        current_link = canonical_root / "current"
+        canonical_bin = current_link / "bin" / "llama-cli"
+
+        if not canonical_bin.is_file():
+            raise AmevaLlamaAssetMissingError(
+                f"Canonical llama-cli binary not found at '{canonical_bin}'. "
+                f"Path search and automatic fallbacks are strictly prohibited under Zero-Silent-Fallback policy. "
+                f"Remediation: Provision official AMEVA assets using 'python -m ameva_runtime.installer --asset llamacpp'."
+            )
+
+        manifest_path = current_link / "manifest.json"
+        if not manifest_path.is_file():
+            manifest_path = canonical_root / "manifests" / "llamacpp.json"
+
+        if not manifest_path.is_file():
+            raise AmevaLlamaVerificationError(
+                f"Cryptographic manifest missing for installed llama-cli bundle at '{current_link}'. "
+                f"Unauthenticated or legacy binary detected. "
+                f"Remediation: Provision official AMEVA assets using 'python -m ameva_runtime.installer --asset llamacpp --force'."
+            )
+
+        try:
+            with manifest_path.open("r", encoding="utf-8") as f:
+                manifest_data = json.load(f)
+        except Exception as exc:
+            raise AmevaLlamaVerificationError(
+                f"Failed parsing manifest file at '{manifest_path}': {exc}. Corrupted installation detected."
+            ) from exc
+
+        expected_sha = manifest_data.get("binary_sha256", "").strip().lower()
+        if not expected_sha:
+            deployed_files = manifest_data.get("deployed_files", {})
+            for rel_k, entry in deployed_files.items():
+                if rel_k.endswith("llama-cli"):
+                    expected_sha = entry.get("sha256", "").strip().lower()
+                    break
+
+        if not expected_sha:
+            raise AmevaLlamaVerificationError(
+                f"Cryptographic manifest at '{manifest_path}' lacks valid sha256 checksum for llama-cli binary."
+            )
+
+        h = hashlib.sha256()
+        with canonical_bin.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                h.update(chunk)
+        actual_sha = h.hexdigest().lower()
+
+        if actual_sha != expected_sha:
+            raise AmevaLlamaVerificationError(
+                f"Cryptographic hash mismatch for primary binary '{canonical_bin}': "
+                f"actual={actual_sha}, expected={expected_sha}. Tampering or corrupt binary detected. "
+                f"Remediation: Re-provision using 'python -m ameva_runtime.installer --asset llamacpp --force'."
+            )
+
+        return str(canonical_bin.resolve())
 
     @classmethod
     def build_cli_args(

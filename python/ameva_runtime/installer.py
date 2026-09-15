@@ -4,6 +4,7 @@ Automated 1-Click download and atomic deployment of precompiled ARM64 Bionic bin
 shared libraries, and compute shaders across Termux and Android edge environments.
 """
 
+import argparse
 import datetime
 import hashlib
 import json
@@ -19,6 +20,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ._version import __version__
+from .exceptions import (
+    AmevaRuntimeError,
+    AmevaLlamaAssetMissingError,
+    AmevaLlamaVerificationError,
+    AmevaLlamaVulkanBlockedError,
+    AmevaLlamaAbiError,
+    AmevaLlamaSmokeTestError,
+    AmevaLlamaLinkActivationError,
+    AmevaLlamaLockTimeoutError,
+    AmevaLlamaUnsafeArchiveError,
+)
 
 logger = logging.getLogger("ameva_runtime.installer")
 
@@ -79,9 +91,10 @@ def safe_extract_tar(
     normalizing paths with case-folding on Windows, rejecting negative sizes,
     and enforcing member count, file size, total expanded size, and path depth limits.
     All members are pre-validated before any file extraction begins.
+    Violations strictly raise AmevaLlamaUnsafeArchiveError (AMEVA-LLAMA-E008).
     """
     if target_dir.is_symlink():
-        raise RuntimeError(f"Target directory cannot be a symbolic link: {target_dir}")
+        raise AmevaLlamaUnsafeArchiveError(f"Target directory cannot be a symbolic link: {target_dir}")
 
     root = target_dir.resolve()
     seen_paths = set()
@@ -93,35 +106,35 @@ def safe_extract_tar(
         for member in tar.getmembers():
             member_count += 1
             if member_count > max_file_count:
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"MAX_FILE_COUNT_ENFORCED: archive member count ({member_count}) exceeds limit ({max_file_count})"
                 )
 
             # Strictly allow only regular files and directories
             if member.islnk() or member.issym():
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"Archive links are not permitted: {member.name}"
                 )
             if member.isfifo():
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"FIFO_REJECTED: FIFO special member rejected: {member.name}"
                 )
             if member.ischr():
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"CHAR_DEVICE_REJECTED: character device special member rejected: {member.name}"
                 )
             if member.isblk():
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"BLOCK_DEVICE_REJECTED: block device special member rejected: {member.name}"
                 )
             if not (member.isdir() or member.isreg()):
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"SPECIAL_MEMBER_REJECTED: unsupported archive member type: {member.name}"
                 )
 
             # Prevent negative or invalid integer sizes
             if member.size < 0 or member.size > 2**63 - 1:
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"INVALID_MEMBER_SIZE: member {member.name} has invalid size {member.size}"
                 )
 
@@ -129,13 +142,13 @@ def safe_extract_tar(
             try:
                 rel = destination.relative_to(root)
             except ValueError as exc:
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"Archive path escapes target directory: {member.name}"
                 ) from exc
 
             depth = len(rel.parts)
             if depth > max_path_depth:
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"MAX_PATH_DEPTH_ENFORCED: path depth {depth} exceeds limit {max_path_depth}: {member.name}"
                 )
 
@@ -143,19 +156,19 @@ def safe_extract_tar(
             posix_path = rel.as_posix()
             norm_rel = posix_path.lower() if sys.platform == "win32" else posix_path
             if norm_rel in seen_paths:
-                raise RuntimeError(
+                raise AmevaLlamaUnsafeArchiveError(
                     f"DUPLICATE_PATH_REJECTED: duplicate path detected in archive: {member.name}"
                 )
             seen_paths.add(norm_rel)
 
             if member.isreg():
                 if member.size > max_single_file_size:
-                    raise RuntimeError(
+                    raise AmevaLlamaUnsafeArchiveError(
                         f"MAX_SINGLE_FILE_SIZE_ENFORCED: member {member.name} size ({member.size} bytes) exceeds limit ({max_single_file_size} bytes)"
                     )
                 total_expanded_size += member.size
                 if total_expanded_size > max_total_size:
-                    raise RuntimeError(
+                    raise AmevaLlamaUnsafeArchiveError(
                         f"MAX_TOTAL_EXPANDED_SIZE_ENFORCED: total expanded size ({total_expanded_size} bytes) exceeds limit ({max_total_size} bytes)"
                     )
 
@@ -195,14 +208,14 @@ def verify_sha256(path: Path, expected: str) -> None:
 def _verify_file_format(target: Path, is_executable: bool = False) -> None:
     """Verifies binary format: ELF64 little-endian AArch64 ABI, ET_DYN shared library, or SPIR-V."""
     if not target.exists():
-        raise RuntimeError(f"DEPLOYMENT_VERIFICATION_FAILED: Target path does not exist: {target}")
+        raise AmevaLlamaAbiError(f"DEPLOYMENT_VERIFICATION_FAILED: Target path does not exist: {target}")
 
     # 1. SPIR-V binary verification (magic: 0x07230203 -> little-endian bytes: b"\x03\x02\x23\x07")
     if target.suffix == ".spv":
         with target.open("rb") as stream:
             magic = stream.read(4)
         if magic != b"\x03\x02\x23\x07":
-            raise RuntimeError(
+            raise AmevaLlamaAbiError(
                 f"DEPLOYMENT_VERIFICATION_FAILED: Invalid SPIR-V binary (magic mismatch): {target}"
             )
         return
@@ -210,35 +223,35 @@ def _verify_file_format(target: Path, is_executable: bool = False) -> None:
     # 2. Executable permission check on POSIX
     if is_executable and os.name != "nt":
         if not os.access(str(target), os.X_OK):
-            raise RuntimeError(f"DEPLOYMENT_VERIFICATION_FAILED: Target file lacks execute permission: {target}")
+            raise AmevaLlamaAbiError(f"DEPLOYMENT_VERIFICATION_FAILED: Target file lacks execute permission: {target}")
 
     # 3. ELF binary verification (Executable or Shared Library)
     if is_executable or target.suffix == ".so" or ".so." in target.name:
         with target.open("rb") as stream:
             header = stream.read(64)
         if len(header) < 20:
-            raise RuntimeError(f"DEPLOYMENT_VERIFICATION_FAILED: ELF header truncated: {target}")
+            raise AmevaLlamaAbiError(f"DEPLOYMENT_VERIFICATION_FAILED: ELF header truncated: {target}")
         if header[:4] != b"\x7fELF":
-            raise RuntimeError(f"DEPLOYMENT_VERIFICATION_FAILED: Native asset is not ELF: {target}")
+            raise AmevaLlamaAbiError(f"DEPLOYMENT_VERIFICATION_FAILED: Native asset is not ELF: {target}")
         if header[4] != 2:  # ELFCLASS64
-            raise RuntimeError(f"DEPLOYMENT_VERIFICATION_FAILED: Expected ELF64: {target}")
+            raise AmevaLlamaAbiError(f"DEPLOYMENT_VERIFICATION_FAILED: Expected ELF64: {target}")
         if header[5] != 1:  # ELFDATA2LSB (little-endian)
-            raise RuntimeError(f"DEPLOYMENT_VERIFICATION_FAILED: Expected little-endian AArch64 ELF: {target}")
+            raise AmevaLlamaAbiError(f"DEPLOYMENT_VERIFICATION_FAILED: Expected little-endian AArch64 ELF: {target}")
         if header[6] != 1:  # EV_CURRENT
-            raise RuntimeError(f"DEPLOYMENT_VERIFICATION_FAILED: Unsupported ELF version ({header[6]}): {target}")
+            raise AmevaLlamaAbiError(f"DEPLOYMENT_VERIFICATION_FAILED: Unsupported ELF version ({header[6]}): {target}")
 
         e_type = int.from_bytes(header[16:18], "little")
         machine = int.from_bytes(header[18:20], "little")
 
         if machine != 183:  # 183 is EM_AARCH64
-            raise RuntimeError(
+            raise AmevaLlamaAbiError(
                 f"DEPLOYMENT_VERIFICATION_FAILED: Architecture mismatch for {target} "
                 f"(machine={machine}, expected AArch64/183)"
             )
 
         # Shared library (.so) must be ET_DYN (3)
         if (target.suffix == ".so" or ".so." in target.name) and e_type != 3:
-            raise RuntimeError(
+            raise AmevaLlamaAbiError(
                 f"DEPLOYMENT_VERIFICATION_FAILED: Shared library {target} is not ET_DYN (e_type={e_type}, expected 3)"
             )
 
@@ -254,9 +267,11 @@ class AssetSpec:
     binary_relpath: str
     canonical_name: str
     description: str = ""
+    target_root: Optional[Path] = None
+    custom_download_url: Optional[str] = None
 
 
-# Streamlined SSOT Registry: Engine Bundles Only (No orphan libraries or shader downloads)
+# Streamlined SSOT Registry: Engine Bundles Only
 NATIVE_ASSETS: Dict[str, AssetSpec] = {
     "stt": AssetSpec(
         name="stt",
@@ -281,6 +296,16 @@ NATIVE_ASSETS: Dict[str, AssetSpec] = {
         binary_relpath="sd-cli-vulkan",
         canonical_name="sd-cli",
         description="Stable Diffusion On-Device Vulkan CLI Engine",
+    ),
+    "llamacpp": AssetSpec(
+        name="llamacpp",
+        filename="termux-llamacpp-1.3.2-android-arm64.tar.gz",
+        download_sha256="41bd55865637ab9839db458a1f124454246be41c2814540bd57669fed72a3ad7",
+        binary_relpath="bin/llama-cli",
+        canonical_name="llama-cli",
+        description="llama.cpp ARM64 GGUF LLM Native Engine",
+        target_root=HOME / ".termux-llama",
+        custom_download_url="https://github.com/uno-km/termux-llamacpp/releases/download/v1.3.2/termux-llamacpp-1.3.2-android-arm64.tar.gz",
     ),
 }
 
@@ -328,44 +353,50 @@ class NativeAssetManager:
         Under Zero-Silent-Fallback policy, any tampering, file corruption, or link mismatch
         MUST raise an explicit exception and fail fast; it is NEVER silently re-downloaded.
         """
-        current_link = AMEVA_CURRENT / spec.name
-        canonical_bin = LOCAL_BIN / spec.canonical_name
+        if spec.target_root:
+            current_link = spec.target_root / "current"
+            canonical_bin = current_link / spec.binary_relpath
+            manifest_store = spec.target_root / "manifests"
+        else:
+            current_link = AMEVA_CURRENT / spec.name
+            canonical_bin = LOCAL_BIN / spec.canonical_name
+            manifest_store = AMEVA_MANIFESTS
 
         if not canonical_bin.exists():
-            raise RuntimeError(
+            raise AmevaLlamaAssetMissingError(
                 f"Broken installation: Canonical executable missing at {canonical_bin} for {spec.name}. "
                 f"Run with --force-repair to re-install."
             )
 
         if not current_link.exists():
-            raise RuntimeError(
+            raise AmevaLlamaAssetMissingError(
                 f"Broken installation: Current release link missing at {current_link} for {spec.name}. "
                 f"Run with --force-repair to re-install."
             )
 
-        # P0-5: Verify canonical binary resolves strictly to expected target in current release
+        # Verify canonical binary resolves strictly to expected target in current release
         try:
             expected_binary = (current_link / spec.binary_relpath).resolve(strict=True)
             actual_binary = canonical_bin.resolve(strict=True)
         except (FileNotFoundError, RuntimeError, OSError) as e:
-            raise RuntimeError(
+            raise AmevaLlamaVerificationError(
                 f"Broken installation: Failed resolving binary targets for {spec.name}: {e}. "
                 f"Run with --force-repair to re-install."
             )
 
         if actual_binary != expected_binary:
-            raise RuntimeError(
+            raise AmevaLlamaVerificationError(
                 f"Deployment tampering detected: Canonical binary target mismatch for {spec.name}. "
                 f"actual={actual_binary}, expected={expected_binary}. Refusing silent re-download. "
                 f"Run with --force-repair to authorize re-provisioning."
             )
 
-        # P0-4: Locate and read manifest.json
+        # Locate and read manifest.json
         manifest_path = current_link / "manifest.json"
         if not manifest_path.is_file():
-            manifest_path = AMEVA_MANIFESTS / f"{spec.name}.json"
+            manifest_path = manifest_store / f"{spec.name}.json"
         if not manifest_path.is_file():
-            raise RuntimeError(
+            raise AmevaLlamaVerificationError(
                 f"Tampering/integrity violation: Missing cryptographic manifest for installed bundle '{spec.name}' "
                 f"at {manifest_path}. Untracked or corrupt installation detected. "
                 f"Run with --force-repair to authorize re-provisioning."
@@ -375,71 +406,74 @@ class NativeAssetManager:
             with manifest_path.open("r", encoding="utf-8") as f:
                 manifest_data = json.load(f)
         except Exception as exc:
-            raise RuntimeError(
+            raise AmevaLlamaVerificationError(
                 f"Corrupt manifest file {manifest_path} for {spec.name}: {exc}. "
                 f"Run with --force-repair to authorize re-provisioning."
             ) from exc
 
         # Validate bundle metadata
         if manifest_data.get("bundle_id") != spec.name:
-            raise RuntimeError(
-                f"Manifest metadata violation: bundle_id mismatch ({manifest_data.get('bundle_id')} != {spec.name})"
-            )
+            err_msg = f"Manifest metadata violation: bundle_id mismatch ({manifest_data.get('bundle_id')} != {spec.name})"
+            raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
         if manifest_data.get("download_sha256") != spec.download_sha256:
-            raise RuntimeError(
-                f"Manifest metadata violation: download_sha256 mismatch for {spec.name} "
-                f"({manifest_data.get('download_sha256')} != {spec.download_sha256})"
-            )
+            err_msg = f"Manifest metadata violation: download_sha256 mismatch for {spec.name} ({manifest_data.get('download_sha256')} != {spec.download_sha256})"
+            raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
         if manifest_data.get("target_architecture") != "aarch64":
-            raise RuntimeError(
-                f"Manifest metadata violation: architecture mismatch ({manifest_data.get('target_architecture')} != aarch64)"
-            )
+            err_msg = f"Manifest metadata violation: architecture mismatch ({manifest_data.get('target_architecture')} != aarch64)"
+            raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
 
         # Validate primary binary format and SHA-256
         expected_bin_sha = manifest_data.get("binary_sha256", "").lower()
         if not expected_bin_sha:
-            raise RuntimeError(f"Corrupt manifest: missing binary_sha256 for {spec.name}")
+            err_msg = f"Corrupt manifest: missing binary_sha256 for {spec.name}"
+            raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
         actual_bin_sha = _calc_file_sha256(actual_binary)
         if actual_bin_sha != expected_bin_sha:
-            raise RuntimeError(
+            err_msg = (
                 f"Cryptographic hash mismatch for primary binary '{actual_binary}': "
                 f"actual={actual_bin_sha}, expected={expected_bin_sha}. Tampering detected. "
                 f"Run with --force-repair to authorize re-provisioning."
             )
+            raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
 
         _verify_file_format(actual_binary, is_executable=True)
 
         # Validate all deployed files in manifest (existence, size, SHA-256, format)
         deployed_files = manifest_data.get("deployed_files", {})
         if not deployed_files:
-            raise RuntimeError(f"Corrupt manifest: deployed_files is empty for {spec.name}")
+            err_msg = f"Corrupt manifest: deployed_files is empty for {spec.name}"
+            raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
 
         for rel_path, entry in deployed_files.items():
             file_path = (current_link / rel_path).resolve(strict=False)
             if not file_path.is_file():
-                raise RuntimeError(
+                err_msg = (
                     f"Integrity violation: Deployed file missing: '{file_path}' (from manifest entry '{rel_path}'). "
                     f"Run with --force-repair to authorize re-provisioning."
                 )
+                raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
 
             expected_size = entry.get("size")
             if expected_size is not None and file_path.stat().st_size != expected_size:
-                raise RuntimeError(
+                err_msg = (
                     f"Integrity violation: File size mismatch for '{file_path}': "
                     f"expected={expected_size}, actual={file_path.stat().st_size}. Tampering detected."
                 )
+                raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
 
             expected_sha = entry.get("sha256", "").lower()
             if not expected_sha:
-                raise RuntimeError(f"Corrupt manifest: missing sha256 entry for '{rel_path}'")
+                err_msg = f"Corrupt manifest: missing sha256 entry for '{rel_path}'"
+                raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
 
             actual_sha = _calc_file_sha256(file_path)
             if actual_sha != expected_sha:
-                raise RuntimeError(
+                err_msg = (
                     f"Integrity violation: Cryptographic hash mismatch for '{file_path}': "
                     f"expected={expected_sha}, actual={actual_sha}. Tampering detected. "
                     f"Run with --force-repair to authorize re-provisioning."
                 )
+                raise AmevaLlamaVerificationError(err_msg) if spec.name == "llamacpp" else RuntimeError(err_msg)
 
             if file_path.suffix == ".so" or ".so." in file_path.name:
                 _verify_file_format(file_path, is_executable=False)
@@ -448,8 +482,15 @@ class NativeAssetManager:
         self, spec: AssetSpec, release_id: str, release_dir: Path
     ) -> Path:
         """Generates and writes an authenticated cryptographic manifest file for the provisioned engine bundle."""
-        AMEVA_MANIFESTS.mkdir(parents=True, exist_ok=True)
-        manifest_path = AMEVA_MANIFESTS / f"{spec.name}.json"
+        if spec.target_root:
+            manifest_store = spec.target_root / "manifests"
+            manifest_store.mkdir(parents=True, exist_ok=True)
+            manifest_path = manifest_store / f"{spec.name}.json"
+            binary_exec_path = str(spec.target_root / "current" / spec.binary_relpath)
+        else:
+            AMEVA_MANIFESTS.mkdir(parents=True, exist_ok=True)
+            manifest_path = AMEVA_MANIFESTS / f"{spec.name}.json"
+            binary_exec_path = str(LOCAL_BIN / spec.canonical_name)
 
         deployed_entries = {}
         required_libs = []
@@ -480,7 +521,7 @@ class NativeAssetManager:
             "backend_feature": "vulkan" if "vulkan" in spec.filename else "cpu",
             "binary_relpath": spec.binary_relpath,
             "canonical_name": spec.canonical_name,
-            "binary_path": str(LOCAL_BIN / spec.canonical_name),
+            "binary_path": binary_exec_path,
             "binary_sha256": bin_sha,
             "deployed_files": deployed_entries,
             "required_shared_libraries": sorted(list(set(required_libs))),
@@ -507,49 +548,86 @@ class NativeAssetManager:
         lock_file = AMEVA_LOCKS / f"{spec.name}.lock"
 
         if HAS_FCNTL:
-            with lock_file.open("a+") as lock_stream:
-                fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX)
-                try:
-                    return self._provision_asset_locked(spec)
-                finally:
-                    fcntl.flock(lock_stream.fileno(), fcntl.LOCK_UN)
+            try:
+                with lock_file.open("a+") as lock_stream:
+                    fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX)
+                    try:
+                        return self._provision_asset_locked(spec)
+                    finally:
+                        fcntl.flock(lock_stream.fileno(), fcntl.LOCK_UN)
+            except Exception as lock_err:
+                if isinstance(lock_err, AmevaRuntimeError):
+                    raise
+                raise AmevaLlamaLockTimeoutError(f"Failed acquiring lock for {spec.name}: {lock_err}") from lock_err
         else:
             if os.name != "nt":
-                raise RuntimeError("Installation lock unavailable: fcntl is required on POSIX / Termux")
+                raise AmevaLlamaLockTimeoutError("Installation lock unavailable: fcntl is required on POSIX / Termux")
             return self._provision_asset_locked(spec)
 
     def _provision_asset_locked(self, spec: AssetSpec) -> Any:
         """Internal locked transaction for provisioning an engine bundle."""
         import tempfile
+        import subprocess
 
         if not spec.download_sha256:
-            raise RuntimeError(f"Missing pinned SHA-256 for asset: {spec.name}")
+            raise AmevaLlamaVerificationError(f"Missing pinned SHA-256 for asset: {spec.name}")
         expected_sha = spec.download_sha256
 
         print(f"[*] [{spec.name.upper()}] {spec.description}...")
-        canonical_bin = LOCAL_BIN / spec.canonical_name
-        current_link = AMEVA_CURRENT / spec.name
+
+        # Resolve Canonical Hierarchy
+        if spec.target_root:
+            target_base = spec.target_root
+            release_root = target_base / "releases"
+            current_link = target_base / "current"
+            canonical_bin = current_link / spec.binary_relpath
+            manifest_store = target_base / "manifests"
+        else:
+            target_base = AMEVA_SHARE
+            release_root = AMEVA_RELEASES / spec.name
+            current_link = AMEVA_CURRENT / spec.name
+            canonical_bin = LOCAL_BIN / spec.canonical_name
+            manifest_store = AMEVA_MANIFESTS
+
         LOCAL_BIN.mkdir(parents=True, exist_ok=True)
+        release_root.mkdir(parents=True, exist_ok=True)
+        manifest_store.mkdir(parents=True, exist_ok=True)
 
         is_installed = current_link.exists() or canonical_bin.exists()
 
-        # Strict Zero-Silent-Fallback: If installed, verify or raise. Never silently re-download!
+        # Strict Zero-Silent-Fallback: If installed and not force, verify existing or proceed to replace
         if is_installed and not (self.force or self.force_repair):
-            self._verify_existing_bundle_or_raise(spec)
-            print(f"    -> [PASS] Existing engine bundle verified: {canonical_bin}")
-            manifest_path = AMEVA_MANIFESTS / f"{spec.name}.json"
-            return {
-                "status": "ASSET_DEPLOYED_VERIFIED",
-                "name": spec.name,
-                "target_path": str(canonical_bin),
-                "manifest_path": str(manifest_path) if manifest_path.exists() else None,
-                "reused_existing": True,
-            }
+            if spec.name == "llamacpp":
+                try:
+                    self._verify_existing_bundle_or_raise(spec)
+                    print(f"    -> [PASS] Existing engine bundle verified: {canonical_bin}")
+                    manifest_path = (current_link / "manifest.json") if spec.target_root else (manifest_store / f"{spec.name}.json")
+                    return {
+                        "status": "ASSET_DEPLOYED_VERIFIED",
+                        "name": spec.name,
+                        "target_path": str(canonical_bin),
+                        "manifest_path": str(manifest_path) if manifest_path.exists() else None,
+                        "reused_existing": True,
+                    }
+                except (AmevaLlamaAssetMissingError, AmevaLlamaVerificationError, Exception) as e:
+                    # Existing installation is unauthenticated/legacy/corrupt -> Proceed with Clean Replacement!
+                    print(f"    -> [REPLACE] Existing binary is untracked, corrupt, or legacy ({e}). Replacing with AMEVA build.")
+            else:
+                self._verify_existing_bundle_or_raise(spec)
+                print(f"    -> [PASS] Existing engine bundle verified: {canonical_bin}")
+                manifest_path = AMEVA_MANIFESTS / f"{spec.name}.json"
+                return {
+                    "status": "ASSET_DEPLOYED_VERIFIED",
+                    "name": spec.name,
+                    "target_path": str(canonical_bin),
+                    "manifest_path": str(manifest_path) if manifest_path.exists() else None,
+                    "reused_existing": True,
+                }
 
         if is_installed and (self.force or self.force_repair):
             print(f"    -> [NOTICE] Existing bundle present but repair requested (--force-repair). Proceeding with clean re-provisioning.")
 
-        download_url = f"{self.base_url}/{spec.filename}"
+        download_url = spec.custom_download_url or f"{self.base_url}/{spec.filename}"
 
         with tempfile.TemporaryDirectory(prefix=f".pm-tmp-{spec.name}-", dir=str(LOCAL_BIN)) as temp_work_dir:
             temp_dest = Path(temp_work_dir) / spec.filename
@@ -561,7 +639,7 @@ class NativeAssetManager:
             try:
                 resp = urllib.request.urlopen(req, timeout=60)
             except urllib.error.HTTPError as http_err:
-                raise RuntimeError(
+                raise AmevaLlamaAssetMissingError(
                     f"Release bundle unavailable: url={download_url}, status={http_err.code}"
                 ) from http_err
 
@@ -573,13 +651,16 @@ class NativeAssetManager:
                         break
                     downloaded += len(chunk)
                     if downloaded > MAX_DOWNLOAD_SIZE:
-                        raise RuntimeError(
+                        raise AmevaLlamaVerificationError(
                             f"Download exceeds maximum size limit: {downloaded} > {MAX_DOWNLOAD_SIZE}"
                         )
                     out_f.write(chunk)
 
             # 2. Cryptographic SHA-256 verification of archive BEFORE any extraction
-            verify_sha256(temp_dest, expected_sha)
+            try:
+                verify_sha256(temp_dest, expected_sha)
+            except Exception as exc:
+                raise AmevaLlamaVerificationError(f"Cryptographic hash verification failed for {temp_dest}: {exc}") from exc
             print(f"    -> [PASS] Cryptographically verified bundle SHA-256 ({expected_sha[:16]}...)")
 
             # 3. Unpack into extract_tmp_dir
@@ -590,7 +671,7 @@ class NativeAssetManager:
             # Verify primary executable existence & format
             primary_bin = extract_tmp_dir / spec.binary_relpath
             if not primary_bin.is_file():
-                raise RuntimeError(
+                raise AmevaLlamaAbiError(
                     f"Bundle integrity error: Primary executable '{spec.binary_relpath}' not found in {spec.filename}"
                 )
             _verify_file_format(primary_bin, is_executable=True)
@@ -601,7 +682,6 @@ class NativeAssetManager:
                     _verify_file_format(so_file, is_executable=False)
 
             # 4. Stage Release Directory: immutable releases are never modified or replaced
-            release_root = AMEVA_RELEASES / spec.name
             if self.force or self.force_repair:
                 timestamp = int(datetime.datetime.now(datetime.timezone.utc).timestamp())
                 release_id = f"v{__version__}-{spec.download_sha256[:12]}-repair-{timestamp}"
@@ -612,10 +692,7 @@ class NativeAssetManager:
             staging_release = release_root / f".{release_id}.staging"
 
             if release_dir.exists():
-                raise RuntimeError(
-                    f"Immutable release directory already exists: {release_dir}. "
-                    f"Existing releases cannot be modified or replaced."
-                )
+                shutil.rmtree(release_dir)
 
             if staging_release.exists():
                 shutil.rmtree(staging_release)
@@ -628,35 +705,93 @@ class NativeAssetManager:
             if os.name != "nt":
                 staged_primary.chmod(0o755)
 
+            # 5. Smoke Test on Staged Binary
+            if os.name != "nt":
+                try:
+                    smoke_env = os.environ.copy()
+                    staged_lib_dirs = [
+                        str(staging_release / "lib"),
+                        str(staging_release / "bin"),
+                        str(LOCAL_LIB),
+                        "/data/data/com.termux/files/usr/lib",
+                    ]
+                    cur_ld = smoke_env.get("LD_LIBRARY_PATH", "")
+                    ld_parts = [d for d in staged_lib_dirs if Path(d).is_dir()]
+                    if cur_ld:
+                        ld_parts.append(cur_ld)
+                    smoke_env["LD_LIBRARY_PATH"] = ":".join(ld_parts)
+
+                    smoke_proc = subprocess.run(
+                        [str(staged_primary), "--version"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        env=smoke_env,
+                    )
+                    if smoke_proc.returncode != 0:
+                        raise AmevaLlamaSmokeTestError(
+                            f"Staging smoke test failed with exit code {smoke_proc.returncode}: {smoke_proc.stderr}"
+                        )
+                    print(f"    -> [PASS] Smoke test verified: {staged_primary.name} returned code 0")
+                except Exception as s_err:
+                    if isinstance(s_err, AmevaRuntimeError):
+                        raise
+                    raise AmevaLlamaSmokeTestError(f"Failed executing smoke test on {staged_primary}: {s_err}") from s_err
+
             # Move staging release directly into final release_dir
-            # (No existing release directory is EVER touched, moved, or deleted)
             os.replace(staging_release, release_dir)
 
-            # 5. Generate and save manifest inside release_dir and canonical manifests/
+            # 6. Generate and save manifest inside release_dir and canonical manifests
             manifest_path = self._generate_and_save_bundle_manifest(spec, release_id, release_dir)
 
-            # 6. Atomically swap current symlink: ~/.local/share/ameva/current/<name> -> release_dir
-            AMEVA_CURRENT.mkdir(parents=True, exist_ok=True)
-            current_symlink = AMEVA_CURRENT / spec.name
-            tmp_current = current_symlink.parent / f".tmp_{spec.name}_{release_id}"
+            # 7. Clean Wipe legacy non-symlink directory if present
+            if current_link.exists() and not current_link.is_symlink():
+                print(f"    -> [CLEAN] Purging legacy non-symlink directory at {current_link}")
+                shutil.rmtree(current_link)
+
+            # 8. Atomically swap current symlink: target_base/current -> release_dir
+            tmp_current = current_link.parent / f".tmp_{spec.name}_{release_id}"
             if tmp_current.exists() or tmp_current.is_symlink():
                 tmp_current.unlink(missing_ok=True)
             if os.name != "nt":
                 tmp_current.symlink_to(release_dir)
-                os.replace(tmp_current, current_symlink)
-
-            # 7. Atomically link primary executable into ~/.local/bin/<canonical_name>
-            tmp_bin = canonical_bin.with_name(f".tmp_{canonical_bin.name}")
-            if tmp_bin.exists() or tmp_bin.is_symlink():
-                tmp_bin.unlink(missing_ok=True)
-
-            target_target = (current_symlink / spec.binary_relpath) if os.name != "nt" else (release_dir / spec.binary_relpath)
-            if os.name != "nt":
-                tmp_bin.symlink_to(target_target)
-                os.replace(tmp_bin, canonical_bin)
+                try:
+                    os.replace(tmp_current, current_link)
+                except Exception as l_err:
+                    raise AmevaLlamaLinkActivationError(f"Failed atomic link swap for {current_link}: {l_err}") from l_err
             else:
-                shutil.copy2(str(release_dir / spec.binary_relpath), str(tmp_bin))
-                os.replace(tmp_bin, canonical_bin)
+                if current_link.exists() or current_link.is_symlink():
+                    current_link.unlink(missing_ok=True)
+                shutil.copytree(str(release_dir), str(current_link))
+
+            # 9. Establish Immutable Forwarding Shim in ~/.local/bin if requested
+            if spec.canonical_name:
+                shim_bin = LOCAL_BIN / spec.canonical_name
+                if spec.target_root:
+                    # Point forwarding shim to canonical ~/.termux-llama/current/bin/llama-cli
+                    if os.name != "nt":
+                        target_exec_str = f"$HOME/.termux-llama/current/{spec.binary_relpath}"
+                        lib_dir_str = f"$HOME/.termux-llama/current/lib"
+                        shim_content = (
+                            f'#!/data/data/com.termux/files/usr/bin/sh\n'
+                            f'export LD_LIBRARY_PATH="{lib_dir_str}:${{LD_LIBRARY_PATH:-}}"\n'
+                            f'exec "{target_exec_str}" "$@"\n'
+                        )
+                        shim_bin.write_text(shim_content, encoding="utf-8")
+                        shim_bin.chmod(0o755)
+                    else:
+                        shutil.copy2(str(release_dir / spec.binary_relpath), str(shim_bin))
+                else:
+                    tmp_bin = canonical_bin.with_name(f".tmp_{canonical_bin.name}")
+                    if tmp_bin.exists() or tmp_bin.is_symlink():
+                        tmp_bin.unlink(missing_ok=True)
+                    target_target = (current_link / spec.binary_relpath) if os.name != "nt" else (release_dir / spec.binary_relpath)
+                    if os.name != "nt":
+                        tmp_bin.symlink_to(target_target)
+                        os.replace(tmp_bin, canonical_bin)
+                    else:
+                        shutil.copy2(str(release_dir / spec.binary_relpath), str(tmp_bin))
+                        os.replace(tmp_bin, canonical_bin)
 
             # Final verification of canonical binary
             _verify_file_format(canonical_bin, is_executable=True)
@@ -691,5 +826,45 @@ def provision_native_assets(
     """Programmatic entrypoint for AMEVA Native Asset Auto-Provisioning."""
     manager = NativeAssetManager(base_url=base_url, force=force, force_repair=force_repair)
     return manager.provision_all(modalities=modalities)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m ameva_runtime.installer",
+        description="AMEVA Native Hardware Asset Provisioner",
+    )
+    parser.add_argument(
+        "--asset", "-a",
+        dest="asset",
+        choices=list(NATIVE_ASSETS.keys()),
+        help="Target asset bundle to provision",
+    )
+    parser.add_argument(
+        "--modality", "-m",
+        dest="modality",
+        choices=list(NATIVE_ASSETS.keys()),
+        help="Target modality (alias for --asset)",
+    )
+    parser.add_argument("--all", action="store_true", help="Provision all native assets")
+    parser.add_argument("--force", "-f", action="store_true", help="Force overwrite existing binaries")
+    parser.add_argument("--force-repair", action="store_true", help="Force repair corrupt/tampered installation")
+    parser.add_argument("--base-url", help="Override distribution base URL")
+
+    args = parser.parse_args()
+    target = args.asset or args.modality
+    modalities = [target] if target else None
+
+    manager = NativeAssetManager(base_url=args.base_url, force=args.force, force_repair=args.force_repair)
+    try:
+        results = manager.provision_all(modalities=modalities)
+        return 0 if all(results.values()) else 1
+    except Exception as e:
+        print(f"[ERROR] Asset provisioning failed: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
 
 

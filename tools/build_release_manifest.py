@@ -40,6 +40,13 @@ EXPECTED_BUNDLES: Dict[str, Dict[str, Any]] = {
         "architecture": "aarch64",
         "backend": "vulkan",
     },
+    "llamacpp": {
+        "filename": "termux-llamacpp-1.3.2-android-arm64.tar.gz",
+        "binary_relpath": "bin/llama-cli",
+        "canonical_name": "llama-cli",
+        "architecture": "aarch64",
+        "backend": "vulkan",
+    },
 }
 
 

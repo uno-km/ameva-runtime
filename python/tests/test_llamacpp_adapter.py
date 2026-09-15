@@ -174,6 +174,84 @@ class TestLlamaCppAdapterRefactored(unittest.TestCase):
                 target_backend="invalid_backend",
             )
 
+    def test_resolve_binary_path_missing_raises_e001(self):
+        """Zero-Silent-Fallback: Missing binary strictly raises AmevaLlamaAssetMissingError (AMEVA-LLAMA-E001)."""
+        import tempfile
+        from unittest.mock import patch
+        from ameva_runtime.exceptions import AmevaLlamaAssetMissingError
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict("os.environ", {"HOME": tmpdir}):
+                with self.assertRaises(AmevaLlamaAssetMissingError) as ctx:
+                    LlamaCppAdapter.resolve_binary_path()
+                self.assertEqual(ctx.exception.error_code, "AMEVA-LLAMA-E001")
+
+    def test_resolve_binary_path_manifest_missing_raises_e002(self):
+        """Integrity Guard: Binary present without cryptographic manifest raises AmevaLlamaVerificationError (AMEVA-LLAMA-E002)."""
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from ameva_runtime.exceptions import AmevaLlamaVerificationError
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bin_dir = Path(tmpdir) / ".termux-llama" / "current" / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            bin_file = bin_dir / "llama-cli"
+            bin_file.write_bytes(b"ELF_FAKE_BIN")
+            with patch.dict("os.environ", {"HOME": tmpdir}):
+                with self.assertRaises(AmevaLlamaVerificationError) as ctx:
+                    LlamaCppAdapter.resolve_binary_path()
+                self.assertEqual(ctx.exception.error_code, "AMEVA-LLAMA-E002")
+
+    def test_resolve_binary_path_hash_mismatch_raises_e002(self):
+        """Integrity Guard: Cryptographic hash mismatch raises AmevaLlamaVerificationError (AMEVA-LLAMA-E002)."""
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from ameva_runtime.exceptions import AmevaLlamaVerificationError
+        with tempfile.TemporaryDirectory() as tmpdir:
+            current_dir = Path(tmpdir) / ".termux-llama" / "current"
+            bin_dir = current_dir / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            bin_file = bin_dir / "llama-cli"
+            bin_file.write_bytes(b"ELF_FAKE_BIN")
+
+            manifest_file = current_dir / "manifest.json"
+            manifest_file.write_text(json.dumps({
+                "bundle_id": "llamacpp",
+                "binary_sha256": "0" * 64,
+            }), encoding="utf-8")
+
+            with patch.dict("os.environ", {"HOME": tmpdir}):
+                with self.assertRaises(AmevaLlamaVerificationError) as ctx:
+                    LlamaCppAdapter.resolve_binary_path()
+                self.assertEqual(ctx.exception.error_code, "AMEVA-LLAMA-E002")
+
+    def test_resolve_binary_path_success(self):
+        """Authentic asset resolution: Returns resolved binary path when verified."""
+        import hashlib
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmpdir:
+            current_dir = Path(tmpdir) / ".termux-llama" / "current"
+            bin_dir = current_dir / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            bin_file = bin_dir / "llama-cli"
+            content = b"ELF_VALID_TEST_BINARY"
+            bin_file.write_bytes(content)
+            bin_sha = hashlib.sha256(content).hexdigest()
+
+            manifest_file = current_dir / "manifest.json"
+            manifest_file.write_text(json.dumps({
+                "bundle_id": "llamacpp",
+                "binary_sha256": bin_sha,
+            }), encoding="utf-8")
+
+            with patch.dict("os.environ", {"HOME": tmpdir}):
+                resolved = LlamaCppAdapter.resolve_binary_path()
+                self.assertEqual(resolved, str(bin_file.resolve()))
+
 
 if __name__ == "__main__":
     unittest.main()

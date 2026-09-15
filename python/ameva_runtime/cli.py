@@ -197,45 +197,6 @@ def cmd_install(args: argparse.Namespace) -> int:
     return 0 if all(results.values()) else 1
 
 
-def _find_llama_cli() -> Optional[str]:
-    search_paths = [
-        os.path.expanduser("~/.local/bin/llama-cli"),
-        os.path.expanduser("~/vulkan-llama/bin/llama-cli"),
-        "/data/data/com.termux/files/home/vulkan-llama/bin/llama-cli",
-        os.path.expanduser("~/.termux-llama/bin/llama-cli"),
-        "/data/data/com.termux/files/home/.termux-llama/bin/llama-cli",
-        os.path.expanduser("~/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli"),
-        "/data/data/com.termux/files/home/BitNet_ms/3rdparty/llama.cpp/build-vulkan/bin/llama-cli",
-        "/data/data/com.termux/files/usr/bin/llama-cli",
-        "llama-cli",
-    ]
-    for p in search_paths:
-        if os.path.isabs(p) and os.path.isfile(p) and os.access(p, os.X_OK):
-            return p
-        # Check PATH
-        import shutil
-        found = shutil.which(p)
-        if found:
-            return found
-    return None
-
-
-def _resolve_model_path(model_arg: str) -> str:
-    if os.path.exists(model_arg):
-        return model_arg
-    # Common Termux locations
-    candidates = [
-        os.path.expanduser(f"~/.termux-llama/models/{model_arg}"),
-        os.path.expanduser(f"~/.termux-llama/models/{model_arg}.gguf"),
-        f"/data/data/com.termux/files/home/.termux-llama/models/{model_arg}",
-        f"/data/data/com.termux/files/home/.termux-llama/models/{model_arg}.gguf",
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    return model_arg
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="ameva-run",
@@ -251,10 +212,11 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument("--all", action="store_true", help="Install all native binaries and accelerators")
     install_parser.add_argument("--force", "-f", action="store_true", help="Force overwrite existing binaries")
     install_parser.add_argument(
-        "--modality", "-m",
-        choices=["all", "diffusion", "stt", "tts", "libomp", "libegl_shim", "matmul_spv"],
+        "--modality", "-m", "--asset", "-a",
+        dest="modality",
+        choices=["all", "llamacpp", "diffusion", "stt", "tts", "libomp", "libegl_shim", "matmul_spv"],
         default="all",
-        help="Target modality to provision (default: all)",
+        help="Target asset or modality to provision (default: all)",
     )
 
     # setup (alias)
@@ -262,10 +224,11 @@ def build_parser() -> argparse.ArgumentParser:
     setup_parser.add_argument("--all", action="store_true", help="Install all native binaries and accelerators")
     setup_parser.add_argument("--force", "-f", action="store_true", help="Force overwrite existing binaries")
     setup_parser.add_argument(
-        "--modality", "-m",
-        choices=["all", "diffusion", "stt", "tts", "libomp", "libegl_shim", "matmul_spv"],
+        "--modality", "-m", "--asset", "-a",
+        dest="modality",
+        choices=["all", "llamacpp", "diffusion", "stt", "tts", "libomp", "libegl_shim", "matmul_spv"],
         default="all",
-        help="Target modality to provision (default: all)",
+        help="Target asset or modality to provision (default: all)",
     )
 
     # doctor
