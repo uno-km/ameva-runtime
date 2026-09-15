@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.6.1] - 2026-09-15
+## [2.6.2] - 2026-09-15
 ### Added & Accelerated
 - **TTS Modality: Bionic Native Vulkan Direct Binding**:
   - Eliminated Mesa `llvmpipe` CPU rasterizer trap in Termux by binding `/system/lib64/libvulkan.so` directly via `BionicDirectVulkanLoader` (`python/ameva_runtime/vulkan/loader.py`).

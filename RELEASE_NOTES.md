@@ -3,12 +3,12 @@
 All notable changes and milestones for `ameva-runtime` will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) and Apache-2.0 governance.
 
-## [v2.6.1] - 2026-09-15
+## [v2.6.2] - 2026-09-15
 ### Native Vulkan Hardware Pipeline, Bionic Direct Binding & Anti-Pattern Elimination (TTS Modality)
 
 #### Version Architecture SSOT
-- **Node.js Package**: `@ameva/runtime v2.6.1`
-- **Python Distribution**: `2.6.1`
+- **Node.js Package**: `@ameva/runtime v2.6.2`
+- **Python Distribution**: `2.6.2`
 - **Native Vulkan HAL ABI**: `1.2.0` (C ABI Bridge Version 1)
 
 #### Major Engineering Milestones & Highlights
