@@ -4,6 +4,7 @@ VisionAdapter — termux-vision (LLaVA ViT / YOLO) Vulkan Acceleration Adapter
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from .base import (
@@ -21,10 +22,16 @@ from ..exceptions import AmevaRuntimeError
 logger = logging.getLogger("ameva_runtime.adapters.vision")
 
 
+def _get_optimal_threads() -> int:
+    cpu_count = os.cpu_count() or 8
+    return max(1, cpu_count // 2 if cpu_count > 4 else cpu_count)
+
+
 class VisionAdapter(BaseAdapter):
     """termux-vision (LLaVA ViT / SmolVLM / YOLO) Vulkan acceleration adapter."""
 
     module_name = "termux-vision"
+    device_signatures = ("vulkan", "fast_cv_vk", "libvulkan.so")
 
     @classmethod
     def get_execution_environment(
@@ -33,20 +40,39 @@ class VisionAdapter(BaseAdapter):
         tune_mali: bool = False,
         tune_adreno: bool = False,
     ) -> dict[str, str]:
-        """
-        Provides verified execution environment adhering to Golden Link Order with Mali/Adreno tuning.
-        Injects GGML_VULKAN_SKIP_CHECKS=999999999 to prevent mobile kernel GPU watchdog timeout
-        (ErrorDeviceLost) during large ViT prefill and shader compilation.
-        """
-        env = get_vulkan_env(base_env)
-        # Essential bypass for Qualcomm Adreno & mobile Vulkan KGSL watchdog / shader check overhead
-        env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
-        if tune_mali:
-            env["GGML_VK_FORCE_MMVQ"] = "1"
-        return env
+        """Provides verified execution environment adhering to Golden Link Order without check bypass."""
+        return super().get_execution_environment(
+            base_env,
+            tune_mali=tune_mali,
+            tune_adreno=tune_adreno,
+        )
 
-    @staticmethod
+    @classmethod
+    def _mutate_modality_attributes(
+        cls,
+        engine: Any,
+        snapshot: dict[str, Any],
+        backend: str,
+        report: Any,
+        profile: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Tier 2: Vision-specific ViT / fast_cv_vk mutation."""
+        if engine is None:
+            return
+        is_vk = (backend == "vulkan")
+        if is_vk:
+            cls._set_engine_property(engine, snapshot, "use_vulkan", True)
+            cls._set_engine_property(engine, snapshot, "use_gpu", True)
+            cls._set_engine_property(engine, snapshot, "vit_acceleration", True)
+        else:
+            cls._set_engine_property(engine, snapshot, "use_vulkan", False)
+            cls._set_engine_property(engine, snapshot, "use_gpu", False)
+            cls._set_engine_property(engine, snapshot, "vit_acceleration", False)
+
+    @classmethod
     def bind(
+        cls,
         engine: Any = None,
         report: Any = None,
         profile: Any = None,
@@ -54,98 +80,96 @@ class VisionAdapter(BaseAdapter):
         **kwargs: Any,
     ) -> BindingResult:
         report = resolve_diagnostic_report(report, profile)
+        req_norm = cls.normalize_backend(requested_backend)
         is_vk = _is_vulkan_report(report)
-        if requested_backend in ("cpu", "cpu_neon"):
-            is_vk = False
-        else:
+
+        if req_norm in ("vulkan", "gpu"):
             check_vulkan_availability_or_raise(
-                VisionAdapter.module_name,
+                cls.module_name,
                 report,
                 is_vk,
-                requested_backend,
+                "vulkan",
             )
+            is_vk = True
+        elif req_norm in ("cpu", "cpu_neon"):
+            is_vk = False
+        else:
+            # 'auto': adaptive routing based on hardware diagnostic report
+            pass
 
         config: dict = {
-            "module": VisionAdapter.module_name,
+            "module": cls.module_name,
             "device_name": report.device_name,
             "vendor_id": report.vendor_id,
+            "requested_backend": req_norm,
         }
+
+        snapshot: dict[str, Any] = {}
+        threads = _get_optimal_threads()
 
         if is_vk:
             config.update({
                 "backend": "vulkan",
                 "vit_acceleration": True,
                 "patch_embedding_vulkan": True,
-                "ameva_loader_path": report.loader_path,
+                "ameva_loader_path": getattr(report, "loader_path", ""),
             })
 
-            if engine is not None:
-                try:
-                    try:
-                        from termux_vision.csrc import backend as vk_backend
-                        vision_lib_path = getattr(vk_backend, "_vk_lib_path", None)
-                        if vision_lib_path and vision_lib_path != report.loader_path:
-                            logger.warning(
-                                "[ameva-runtime:VisionAdapter] Vulkan ICD path discrepancy detected: "
-                                "ameva=%s | vision=%s. "
-                                "Preserving termux-vision internal libfast_cv_vk.so stack.",
-                                report.loader_path, vision_lib_path
-                            )
-                        else:
-                            logger.info(
-                                "[ameva-runtime:VisionAdapter] Confirmed matching Vulkan ICD path: %s",
-                                report.loader_path
-                            )
-                    except ImportError:
-                        logger.warning(
-                            "[ameva-runtime:VisionAdapter] Cannot import termux_vision package. "
-                            "Ensure vision package is installed."
-                        )
-
-                    if hasattr(engine, "device"):
-                        engine.device = "vulkan"
-                    if hasattr(engine, "use_vulkan"):
-                        engine.use_vulkan = True
-                    logger.info(
-                        "[ameva-runtime:VisionAdapter] LLaVA/YOLO Vulkan ViT binding complete."
-                    )
-                except Exception as e:
-                    logger.error("[ameva-runtime:VisionAdapter] Binding error: %s", e)
-                    raise AmevaRuntimeError(
-                        f"[ameva-runtime:VisionAdapter] Vision Vulkan binding failure: {e}"
-                    ) from e
+            try:
+                cls._mutate_common_attributes(engine, snapshot, "vulkan", threads)
+                cls._mutate_modality_attributes(engine, snapshot, "vulkan", report, profile, **kwargs)
+                logger.info("[%s] LLaVA/YOLO Vulkan ViT binding complete.", cls.module_name)
+            except Exception as e:
+                logger.error("[%s] Binding error: %s", cls.module_name, e)
+                raise AmevaRuntimeError(f"[{cls.module_name}] Vision Vulkan binding failure: {e}") from e
 
             return BindingResult(
-                module=VisionAdapter.module_name,
+                module=cls.module_name,
                 backend="vulkan",
                 is_vulkan=True,
                 device_name=report.device_name,
                 vendor_id=report.vendor_id,
                 config=config,
                 status="BOUND",
+                restore_state=snapshot,
             )
         else:
             config["vit_acceleration"] = False
-            return _make_cpu_binding(
-                VisionAdapter.module_name,
+            cls._mutate_common_attributes(engine, snapshot, "cpu", threads)
+            cls._mutate_modality_attributes(engine, snapshot, "cpu", report, profile, **kwargs)
+            res = _make_cpu_binding(
+                cls.module_name,
                 report,
                 config,
-                reason="Explicit CPU requested" if requested_backend in ("cpu", "cpu_neon") else "Vulkan unavailable",
+                reason="Explicit CPU requested" if req_norm in ("cpu", "cpu_neon") else "Vulkan unavailable",
+            )
+            # Attach snapshot to CPU binding as well for non-destructive restore
+            return BindingResult(
+                module=res.module,
+                backend=res.backend,
+                is_vulkan=res.is_vulkan,
+                device_name=res.device_name,
+                vendor_id=res.vendor_id,
+                config=res.config,
+                status=res.status,
+                restore_state=snapshot,
             )
 
-    @staticmethod
-    def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-runtime:VisionAdapter] Unbinding adapter and resetting resources.")
+    @classmethod
+    def unbind(cls, engine: Any = None, binding_result: Optional[BindingResult] = None) -> None:
+        """Restores engine state strictly and ensures GPU compute flags are reset to safe baseline."""
+        super().unbind(engine, binding_result)
         if engine is not None:
-            try:
-                if hasattr(engine, "use_gpu"):
-                    engine.use_gpu = False
-                if hasattr(engine, "use_vulkan"):
-                    engine.use_vulkan = False
-                if hasattr(engine, "device"):
+            if hasattr(engine, "device"):
+                try:
                     engine.device = "cpu"
-            except Exception as e:
-                logger.debug("[ameva-runtime:VisionAdapter] Ignored exception during unbind: %s", e)
+                except Exception:
+                    pass
+            if hasattr(engine, "use_gpu"):
+                try:
+                    engine.use_gpu = False
+                except Exception:
+                    pass
 
     @classmethod
     def build_cli_args(

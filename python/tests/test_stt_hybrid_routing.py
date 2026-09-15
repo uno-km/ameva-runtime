@@ -5,6 +5,7 @@ Verifies that SmartRouter and SttAdapter produce optimal Vulkan plans
 for Galaxy S25 (Adreno 830) and Galaxy A35 (Mali-G68) with correct
 Medium MatMul quirks, library paths, and clean CPU fallbacks.
 """
+import os
 import unittest
 from ameva_runtime.detector import HardwareProfile
 from ameva_runtime.router import SmartRouter
@@ -446,6 +447,7 @@ class TestSttHybridRouting(unittest.TestCase):
                 verify_stt_manifest(bin_file, manifest_path=manifest_path)
             self.assertIn("Deployed file integrity violation", str(ctx.exception))
 
+    @unittest.skipUnless(os.name == "nt", "Windows host mock test only")
     def test_windows_mock_does_not_claim_gpu_inference_verified(self):
         """P0-8: Windows mock must return HOST_MOCK_ONLY with is_gpu_verified=False, never false success."""
         import tempfile

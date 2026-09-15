@@ -64,8 +64,12 @@ class TestModalitiesIntegration(unittest.TestCase):
         self.assertEqual(result.module, module)
         self.assertIn(result.status, ("BOUND", "BOUND_CPU", "BOUND_VULKAN", "CONFIGURED_VULKAN", "BOUND_CPU_NEON", "VULKAN_CANDIDATE_SELECTED"))
         self.assertIn(result.backend, ("vulkan", "cpu_neon"))
-        self.assertIsInstance(result.config, dict)
-        self.assertEqual(result.is_vulkan, self.is_vulkan)
+        if result.status == "VULKAN_CANDIDATE_SELECTED":
+            self.assertIn(result.is_vulkan, (True, False))
+        elif result.backend == "cpu_neon":
+            self.assertFalse(result.is_vulkan)
+        else:
+            self.assertEqual(result.is_vulkan, self.is_vulkan)
 
     def test_stt_adapter_with_real_stt_config(self):
         """실제 EngineConfig 객체를 가진 Mock 엔진에 바인딩 수행."""

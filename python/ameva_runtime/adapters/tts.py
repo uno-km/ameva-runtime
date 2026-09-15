@@ -190,21 +190,23 @@ class TtsAdapter(BaseAdapter):
         return None
 
     @classmethod
+    def get_execution_environment(
+        cls,
+        base_env: Optional[dict[str, str]] = None,
+        is_mali: bool = False,
+        **kwargs: Any,
+    ) -> dict[str, str]:
+        """Assemble environment variables conforming to Golden Link Order with Mali DSP flags."""
+        return super().get_execution_environment(base_env, dsp_accel=is_mali, **kwargs)
+
+    @classmethod
     def get_execution_env(
         cls,
         extra_env: Optional[dict[str, str]] = None,
         is_mali: bool = False,
     ) -> dict[str, str]:
-        """Assemble environment variables conforming to Golden Link Order with Mali DSP flags."""
-        base_env = dict(os.environ)
-        if extra_env:
-            base_env.update(extra_env)
-        env = get_vulkan_env(base_env)
-
-        if is_mali:
-            env["AMEVA_VK_DSP_ACCEL"] = "1"
-
-        return env
+        """Backward-compatible alias for get_execution_environment."""
+        return cls.get_execution_environment(base_env=extra_env, is_mali=is_mali)
 
     @classmethod
     def build_cli_args(
@@ -226,8 +228,23 @@ class TtsAdapter(BaseAdapter):
             str(text).strip(),
         ]
 
-    @staticmethod
+    @classmethod
+    def _mutate_modality_attributes(
+        cls,
+        engine: Any,
+        snapshot: dict[str, Any],
+        report: DiagnosticReport,
+        **kwargs: Any,
+    ) -> None:
+        """Tier 2: TTS specific mutation."""
+        model_tier = (kwargs.get("tier") or kwargs.get("model_tier") or "high").lower()
+        cls._set_engine_property(engine, snapshot, "model_tier", model_tier)
+        cls._set_engine_property(engine, snapshot, "backend", "vulkan")
+        cls._set_engine_property(engine, snapshot, "use_vulkan", True)
+
+    @classmethod
     def bind(
+        cls,
         engine: Any = None,
         report: Any = None,
         profile: Any = None,
@@ -236,11 +253,20 @@ class TtsAdapter(BaseAdapter):
     ) -> BindingResult:
         report = resolve_diagnostic_report(report, profile)
         is_vk = _is_vulkan_report(report)
-        if requested_backend in ("cpu", "cpu_neon"):
+        engine_type = type(engine).__name__
+        engine_device = str(getattr(engine, "device", "")).lower()
+        engine_mod = getattr(type(engine), "__module__", "")
+        is_onnx_engine = (
+            "ONNX" in engine_type
+            or "onnx" in engine_mod
+            or engine_device in ("cpu", "cpu_neon")
+            or getattr(engine, "backend", "") in ("cpu", "cpu_neon")
+        )
+        if requested_backend in ("cpu", "cpu_neon") or is_onnx_engine:
             is_vk = False
         else:
             check_vulkan_availability_or_raise(
-                TtsAdapter.module_name,
+                cls.module_name,
                 report,
                 is_vk,
                 requested_backend,
@@ -252,22 +278,23 @@ class TtsAdapter(BaseAdapter):
         # User-selected tier without heuristic device-specific forced overrides
         model_tier = (kwargs.get("tier") or kwargs.get("model_tier") or "high").lower()
 
-        config: dict = {
-            "module": TtsAdapter.module_name,
+        config: dict[str, Any] = {
+            "module": cls.module_name,
             "device_name": report.device_name,
             "vendor_id": report.vendor_id,
             "is_mali": is_mali,
             "is_adreno": is_adreno,
             "model_tier": model_tier,
         }
+        snapshot: dict[str, Any] = {}
 
         model_type = kwargs.get("model_type", "auto")
 
         if is_vk:
             effective_model_type = "vits"
             if model_type in ("melo", "melo_vulkan", "melo_ncnn", "melo_mnn"):
-                dir_ncnn = TtsAdapter.resolve_model_dir(tier=model_tier, model_type="melo_vulkan")
-                dir_mnn = TtsAdapter.resolve_model_dir(tier=model_tier, model_type="melo_mnn")
+                dir_ncnn = cls.resolve_model_dir(tier=model_tier, model_type="melo_vulkan")
+                dir_mnn = cls.resolve_model_dir(tier=model_tier, model_type="melo_mnn")
                 if model_type in ("melo_vulkan", "melo_ncnn"):
                     effective_model_type = "melo_vulkan"
                 elif model_type in ("melo_mnn", "mnn"):
@@ -283,8 +310,8 @@ class TtsAdapter(BaseAdapter):
                     effective_model_type = "melo_vulkan"
 
             target_backend = "mnn" if "mnn" in effective_model_type else "vulkan"
-            target_binary = TtsAdapter.resolve_binary_path(target_backend)
-            target_model_dir = TtsAdapter.resolve_model_dir(tier=model_tier, model_type=effective_model_type)
+            target_binary = cls.resolve_binary_path(target_backend)
+            target_model_dir = cls.resolve_model_dir(tier=model_tier, model_type=effective_model_type)
 
             config.update({
                 "backend": "vulkan",
@@ -299,64 +326,47 @@ class TtsAdapter(BaseAdapter):
 
             if engine is not None:
                 try:
-                    if hasattr(engine, "device"):
-                        engine.device = "vulkan"
-                    if hasattr(engine, "model_tier"):
-                        engine.model_tier = model_tier
-                    if hasattr(engine, "backend"):
-                        engine.backend = "vulkan"
-                    if hasattr(engine, "use_vulkan"):
-                        engine.use_vulkan = True
-                    if hasattr(engine, "threads"):
-                        engine.threads = getattr(profile, "recommended_threads", 4)
+                    threads = getattr(profile, "recommended_threads", 4) if profile else 4
+                    cls._mutate_common_attributes(engine, snapshot, backend="vulkan", threads=threads)
+                    cls._mutate_modality_attributes(engine, snapshot, report, **kwargs)
                     logger.info(
                         "[TtsAdapter] VITS Vulkan GPU bound successfully (device=%s, tier=%s)",
                         report.device_name, model_tier
                     )
                 except Exception as e:
+                    cls._restore_engine_properties(engine, snapshot)
                     logger.error("[TtsAdapter] Binding error: %s", e)
                     raise AmevaRuntimeError(f"[TtsAdapter] TTS Vulkan binding failure: {e}") from e
 
             return BindingResult(
-                module=TtsAdapter.module_name,
+                module=cls.module_name,
                 backend="vulkan",
                 is_vulkan=True,
                 device_name=report.device_name,
                 vendor_id=report.vendor_id,
                 config=config,
                 status="BOUND_VULKAN",
+                restore_state=snapshot,
             )
         else:
             config["offload_to_cpu"] = True
             config["model_tier"] = "balanced"
             config["model_type"] = model_type
-            config["binary_path"] = TtsAdapter.resolve_binary_path("cpu")
-            config["model_dir"] = TtsAdapter.resolve_model_dir(tier="balanced", model_type=model_type)
+            config["binary_path"] = cls.resolve_binary_path("cpu")
+            config["model_dir"] = cls.resolve_model_dir(tier="balanced", model_type=model_type)
             if engine is not None:
-                try:
-                    if hasattr(engine, "device"):
-                        engine.device = "cpu"
-                    if hasattr(engine, "model_tier"):
-                        engine.model_tier = "balanced"
-                    if hasattr(engine, "model_type"):
-                        engine.model_type = model_type
-                except Exception:
-                    pass
+                cls._mutate_common_attributes(engine, snapshot, backend="cpu", threads=4)
+                cls._set_engine_property(engine, snapshot, "model_tier", "balanced")
+                cls._set_engine_property(engine, snapshot, "model_type", model_type)
             return _make_cpu_binding(
-                TtsAdapter.module_name,
+                cls.module_name,
                 report,
                 config,
                 reason="Explicit CPU requested" if requested_backend in ("cpu", "cpu_neon") else "Vulkan unavailable",
+                restore_state=snapshot,
             )
 
-    @staticmethod
-    def unbind(engine: Any = None) -> None:
-        logger.info("[TtsAdapter] Unbinding and resetting resources.")
-        if engine is not None:
-            try:
-                if hasattr(engine, "device"):
-                    engine.device = "cpu"
-                if hasattr(engine, "use_vulkan"):
-                    engine.use_vulkan = False
-            except Exception as e:
-                logger.debug("[TtsAdapter] Ignored exception during unbind: %s", e)
+    @classmethod
+    def unbind(cls, engine: Any = None, binding_result: BindingResult | None = None) -> None:
+        """Restores engine state to pre-binding configuration without silent exception swallowing."""
+        super().unbind(engine, binding_result)

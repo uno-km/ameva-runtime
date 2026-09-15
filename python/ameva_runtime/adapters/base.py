@@ -53,8 +53,306 @@ def resolve_diagnostic_report(report: Any = None, profile: Any = None) -> Diagno
         )
 
 
+_MISSING = object()
+
+DEFAULT_CPU_FALLBACK_PATTERNS = (
+    "no gpu found",
+    "using cpu backend",
+    "falling back to cpu",
+    "fallback to cpu",
+    "vulkan initialization failed",
+    "failed to initialize vulkan",
+    "no vulkan device",
+    "backend unavailable",
+    "ggml_vulkan: failed",
+    "ggml_vulkan: cannot",
+)
+
+
+def _extract_cli_ngl(args: list[str]) -> Optional[int]:
+    """Extracts existing -ngl or --n-gpu-layers value from CLI arguments list."""
+    for flag in ("-ngl", "--n-gpu-layers"):
+        if flag in args:
+            idx = args.index(flag)
+            if idx + 1 < len(args):
+                try:
+                    return int(args[idx + 1])
+                except ValueError:
+                    return None
+    return None
+
+
+def _set_engine_property(
+    engine: Any,
+    snapshot: dict[str, Any],
+    key: str,
+    val: Any,
+) -> None:
+    """Universal engine property injector supporting dict, ConfigObject, SimpleNamespace, and primitives.
+    Automatically captures the exact pre-mutation state into snapshot dictionary.
+    """
+    if engine is None or isinstance(engine, list):
+        return
+
+    # 1. Dict interface
+    if isinstance(engine, dict):
+        if key not in snapshot:
+            snapshot[key] = engine.get(key, _MISSING)
+        engine[key] = val
+
+    # 2. Config object interface (when engine doesn't have the attribute directly)
+    elif hasattr(engine, "config") and not hasattr(engine, key) and getattr(engine, "config", None) is not None:
+        cfg = engine.config
+        snap_key = f"config.{key}"
+        if isinstance(cfg, dict):
+            if snap_key not in snapshot:
+                snapshot[snap_key] = cfg.get(key, _MISSING)
+            cfg[key] = val
+        else:
+            if snap_key not in snapshot:
+                snapshot[snap_key] = getattr(cfg, key, _MISSING)
+            setattr(cfg, key, val)
+
+    # 3. Direct object attribute interface
+    else:
+        if key not in snapshot:
+            snapshot[key] = getattr(engine, key, _MISSING)
+        setattr(engine, key, val)
+
+
+def _restore_engine_properties(
+    engine: Any,
+    snapshot: Optional[dict[str, Any]],
+) -> None:
+    """Restores engine state strictly to its pre-binding snapshot without destructive side-effects."""
+    if engine is None or not snapshot:
+        return
+
+    # 1. Restore CLI argument list slice
+    if isinstance(engine, list) and "cli_args_len" in snapshot:
+        orig_len = snapshot["cli_args_len"]
+        if isinstance(orig_len, int) and len(engine) >= orig_len:
+            del engine[orig_len:]
+
+    # 2. Restore dict and object attributes
+    for k, old_val in snapshot.items():
+        if k == "cli_args_len":
+            continue
+
+        if k.startswith("config."):
+            cfg_key = k[7:]
+            if hasattr(engine, "config"):
+                cfg = engine.config
+                if isinstance(cfg, dict):
+                    if old_val is _MISSING:
+                        cfg.pop(cfg_key, None)
+                    else:
+                        cfg[cfg_key] = old_val
+                else:
+                    if old_val is _MISSING:
+                        if hasattr(cfg, cfg_key):
+                            try:
+                                delattr(cfg, cfg_key)
+                            except Exception:
+                                setattr(cfg, cfg_key, None)
+                    else:
+                        setattr(cfg, cfg_key, old_val)
+        else:
+            if isinstance(engine, dict):
+                if old_val is _MISSING:
+                    engine.pop(k, None)
+                else:
+                    engine[k] = old_val
+            else:
+                if old_val is _MISSING:
+                    if hasattr(engine, k):
+                        try:
+                            delattr(engine, k)
+                        except Exception:
+                            setattr(engine, k, None)
+                else:
+                    setattr(engine, k, old_val)
+
+
 class BaseAdapter:
-    """Base class for all ameva modality adapters providing common diagnostic helpers."""
+    """Base class and orchestration core for all AMEVA modality adapters."""
+
+    module_name: str = "generic-adapter"
+    ALLOWED_BACKENDS = {"auto", "vulkan", "gpu", "cpu", "cpu_neon"}
+    device_signatures: tuple[str, ...] = ("vulkan",)
+    fallback_patterns: tuple[str, ...] = DEFAULT_CPU_FALLBACK_PATTERNS
+
+    @classmethod
+    def normalize_backend(cls, requested_backend: Optional[str]) -> str:
+        """Validates requested backend against allowed whitelist adhering to Fail-Fast."""
+        req = str(requested_backend or "auto").strip().lower()
+        if req not in cls.ALLOWED_BACKENDS:
+            from ..exceptions import AmevaRuntimeError
+            raise AmevaRuntimeError(
+                f"[{cls.module_name}] Unsupported backend '{requested_backend}'. "
+                f"Allowed backends: {sorted(cls.ALLOWED_BACKENDS)}"
+            )
+        return req
+
+    @classmethod
+    def get_execution_environment(
+        cls,
+        base_env: Optional[dict[str, str]] = None,
+        **hardware_quirks: Any,
+    ) -> dict[str, str]:
+        """Provides verified execution environment adhering to Golden Link Order.
+        Guarantees that GGML_VULKAN_SKIP_CHECKS is NEVER injected, while preserving legitimate hardware quirks.
+        """
+        env = get_vulkan_env(base_env)
+        # Guarantee no check bypass
+        env.pop("GGML_VULKAN_SKIP_CHECKS", None)
+
+        # Dynamic Hardware Quirks Synthesizer
+        if hardware_quirks.get("tune_mali") or hardware_quirks.get("force_mmvq"):
+            env["GGML_VK_FORCE_MMVQ"] = "1"
+        if hardware_quirks.get("dsp_accel"):
+            env["AMEVA_VK_DSP_ACCEL"] = "1"
+
+        for k, v in hardware_quirks.items():
+            if k.startswith("GGML_VK_") or k.startswith("AMEVA_"):
+                env[k] = str(v)
+
+        return env
+
+    @classmethod
+    def _set_engine_property(
+        cls,
+        engine: Any,
+        snapshot: dict[str, Any],
+        key: str,
+        val: Any,
+    ) -> None:
+        """Universal property injector exposed to subclasses."""
+        _set_engine_property(engine, snapshot, key, val)
+
+    @classmethod
+    def _restore_engine_properties(
+        cls,
+        engine: Any,
+        snapshot: Optional[dict[str, Any]],
+    ) -> None:
+        """Universal property restorer exposed to subclasses."""
+        _restore_engine_properties(engine, snapshot)
+
+    @classmethod
+    def _mutate_common_attributes(
+        cls,
+        engine: Any,
+        snapshot: dict[str, Any],
+        backend: str,
+        threads: int,
+    ) -> None:
+        """Tier 1: Common invariant layer (cleans LD_LIBRARY_PATH pollution, sets device & threads)."""
+        if engine is None:
+            return
+
+        if isinstance(engine, dict):
+            # Sanitize LD_LIBRARY_PATH pollution
+            if "env" in engine and isinstance(engine["env"], dict):
+                engine["env"].pop("LD_LIBRARY_PATH", None)
+            cls._set_engine_property(engine, snapshot, "device", "vulkan" if backend == "vulkan" else "cpu")
+            cls._set_engine_property(engine, snapshot, "threads", threads)
+        elif hasattr(engine, "config"):
+            cls._set_engine_property(engine, snapshot, "device", "vulkan" if backend == "vulkan" else "cpu")
+            cls._set_engine_property(engine, snapshot, "threads", threads)
+        elif isinstance(engine, list):
+            # Capture CLI argument length for non-destructive slice restore
+            if "cli_args_len" not in snapshot:
+                snapshot["cli_args_len"] = len(engine)
+            if "-t" not in engine and "--threads" not in engine:
+                engine.extend(["-t", str(threads)])
+        else:
+            if hasattr(engine, "device"):
+                cls._set_engine_property(engine, snapshot, "device", "vulkan" if backend == "vulkan" else "cpu")
+            if hasattr(engine, "threads"):
+                cls._set_engine_property(engine, snapshot, "threads", threads)
+
+    @classmethod
+    def _mutate_modality_attributes(
+        cls,
+        engine: Any,
+        snapshot: dict[str, Any],
+        backend: str,
+        report: Any,
+        profile: Any,
+        **kwargs: Any,
+    ) -> None:
+        """Tier 2: Modality-specific hook to be implemented by subclasses."""
+        pass
+
+    @classmethod
+    def unbind(
+        cls,
+        engine: Any = None,
+        binding_result: Optional[BindingResult] = None,
+    ) -> None:
+        """Restores engine state strictly to its pre-binding snapshot without destructive side-effects."""
+        if engine is None:
+            return
+        snapshot = None
+        if binding_result is not None and binding_result.restore_state:
+            snapshot = binding_result.restore_state
+        try:
+            cls._restore_engine_properties(engine, snapshot)
+            logger.info("[%s] Unbound adapter and restored engine state.", cls.module_name)
+        except Exception as e:
+            logger.warning("[%s] Unbind failed: %s", cls.module_name, e)
+
+    @classmethod
+    def verify_vulkan_compute_output(
+        cls,
+        stdout: str = "",
+        stderr: str = "",
+        returncode: int = 0,
+        expected_signatures: Optional[tuple[str, ...]] = None,
+        module_name: Optional[str] = None,
+        stdout_text: str = "",
+        stderr_text: str = "",
+    ) -> None:
+        """Context-Aware Zero-False-Positive Verifier.
+        Inspects exclusively stderr and process returncode, protecting stdout from false alarm.
+        """
+        from ..exceptions import AmevaRuntimeError, PlatformNotSupportedError
+
+        out_err = stderr or stderr_text or stdout or stdout_text
+        mod = module_name or getattr(cls, "module_name", "generic-adapter")
+
+        if returncode != 0:
+            raise AmevaRuntimeError(
+                f"[{mod}] Native compute process failed with exit code {returncode}.\n"
+                f"Stderr: {out_err}"
+            )
+
+        lower_err = (out_err or "").lower()
+        for pat in cls.fallback_patterns:
+            if pat in lower_err:
+                raise PlatformNotSupportedError(
+                    f"[{mod}] Silent CPU fallback detected in runtime stderr: '{pat}'.\n"
+                    f"Execution halted strictly under Zero-Silent-Fallback policy."
+                )
+
+        target_sigs = expected_signatures if expected_signatures is not None else cls.device_signatures
+        if target_sigs and not any(sig in lower_err for sig in target_sigs):
+            raise PlatformNotSupportedError(
+                f"[{mod}] No positive Vulkan device signature logged in runtime stderr.\n"
+                f"Expected signatures: {target_sigs}"
+            )
+
+    @classmethod
+    def verify_in_process_device(cls, engine: Any) -> bool:
+        """Verifies in-process C-API / shared library device binding."""
+        if engine is None:
+            return False
+        if hasattr(engine, "device"):
+            return getattr(engine, "device", "") == "vulkan"
+        if hasattr(engine, "use_vulkan"):
+            return bool(getattr(engine, "use_vulkan", False))
+        return False
 
     @staticmethod
     def resolve_diagnostic_report(report: Any = None, profile: Any = None) -> DiagnosticReport:
@@ -97,6 +395,7 @@ def _make_cpu_binding(
     report: DiagnosticReport,
     config: dict,
     reason: str = "",
+    restore_state: Optional[dict[str, Any]] = None,
 ) -> BindingResult:
     """Creates a standardized CPU NEON BindingResult when CPU backend is explicitly requested or routed."""
     device = getattr(report, "device_name", None) or "Generic CPU"
@@ -114,6 +413,7 @@ def _make_cpu_binding(
         vendor_id=getattr(report, "vendor_id", 0),
         config=config,
         status="BOUND_CPU_NEON",
+        restore_state=restore_state,
     )
 
 

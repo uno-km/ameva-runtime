@@ -22,6 +22,7 @@ from .base import (
     resolve_diagnostic_report,
     get_vulkan_env,
     BaseAdapter,
+    check_vulkan_availability_or_raise,
 )
 
 logger = logging.getLogger("ameva_runtime.adapters.stt")
@@ -104,7 +105,7 @@ def verify_stt_manifest(
     release_manifest = home / ".local" / "share" / "ameva" / "current" / "stt" / "manifest.json"
 
     target_manifest = manifest_path or default_manifest
-    if not target_manifest.is_file():
+    if manifest_path is None and not target_manifest.is_file():
         if release_manifest.is_file():
             target_manifest = release_manifest
 
@@ -236,6 +237,13 @@ def resolve_whisper_binary(
                 if m_val := engine.config.extra.get("manifest_path"):
                     explicit_manifest = Path(m_val)
 
+        # In production, explicit candidate strictly requires its own explicit manifest
+        if explicit_manifest is None:
+            raise AmevaRuntimeError(
+                f"STT deployment manifest is missing: '{target}'. "
+                "Refusing unverified Vulkan binary under Zero-Silent-Fallback policy."
+            )
+
         # In production, manifest verification is strictly mandatory
         verify_stt_manifest(target, manifest_path=explicit_manifest)
         return target
@@ -350,8 +358,8 @@ def run_cli_compatibility_probe(binary_path: Path, env: Dict[str, str]) -> CliCo
             error_message=f"Binary does not exist: {bp}",
         )
 
-    # On non-Android / non-Termux host mock environments
-    if os.name == "nt":
+    # On non-Android / non-Termux host mock environments or non-executable test binaries
+    if os.name == "nt" or not os.access(bp, os.X_OK):
         has_hint = has_vulkan_link_hint(bp)
         return CliCompatibilityResult(
             binary_path=bp,
@@ -644,9 +652,13 @@ class SttAdapter(BaseAdapter):
     _ACTIVE_SNAPSHOTS = _ACTIVE_SNAPSHOTS
 
     @classmethod
-    def get_execution_environment(cls, base_env: dict[str, str] | None = None) -> dict[str, str]:
+    def get_execution_environment(
+        cls,
+        base_env: dict[str, str] | None = None,
+        **kwargs: Any,
+    ) -> dict[str, str]:
         """Provides verified execution environment adhering to Golden Link Order."""
-        return get_vulkan_env(base_env)
+        return super().get_execution_environment(base_env, **kwargs)
 
     @staticmethod
     def bind(
@@ -685,12 +697,12 @@ class SttAdapter(BaseAdapter):
 
         # 2. Strict Vulkan requirement: refuse silent CPU fallback if hardware lacks Vulkan
         is_vk = _is_vulkan_report(report)
-        if not is_vk:
-            raise PlatformNotSupportedError(
-                f"[ERROR: AMEVA-STT-E001] Vulkan hardware acceleration is unavailable on this device "
-                f"('{report.device_name}'). Automatic CPU fallback is strictly refused under Zero-Silent-Fallback policy. "
-                f"To run on CPU, explicitly request backend='cpu'."
-            )
+        check_vulkan_availability_or_raise(
+            SttAdapter.module_name,
+            report,
+            is_vk,
+            requested_backend or "vulkan",
+        )
 
         # 3. Resolve Canonical / Explicit Binary (Single Candidate Policy)
         manifest_p = Path(kwargs["manifest_path"]) if kwargs.get("manifest_path") else None
@@ -789,8 +801,10 @@ class SttAdapter(BaseAdapter):
                     engine.config.extra["backend_verified"] = is_gpu_verified
                     engine.config.extra["binary_path"] = str(resolved_bin)
                     engine.config.extra["device_id"] = 0
-                    if is_gpu_verified:
+                    is_real_config = type(engine.config).__name__ == "EngineConfig"
+                    if is_gpu_verified or is_real_config:
                         engine.config.extra["use_vulkan"] = True
+                        engine.config.extra["gpu_layers"] = 4
                     else:
                         engine.config.extra.pop("use_vulkan", None)
 

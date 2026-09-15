@@ -38,8 +38,8 @@ def _calculate_bitnet_layers(engine: Any) -> int:
         elif "1.3b" in model_name:
             return 24
         elif "3b" in model_name or "2.7b" in model_name:
-            return 32
-    return 32
+            return 33
+    return 33
 
 
 class BitnetAdapter(BaseAdapter):
@@ -51,14 +51,42 @@ class BitnetAdapter(BaseAdapter):
     def get_execution_environment(
         cls,
         base_env: dict[str, str] | None = None,
+        tune_mali: bool = False,
+        **kwargs: Any,
     ) -> dict[str, str]:
         """Provides verified BitNet execution environment conforming to Golden Link Order."""
-        env = get_vulkan_env(base_env)
-        env.setdefault("GGML_VULKAN_SKIP_CHECKS", "999999999")
-        return env
+        return super().get_execution_environment(base_env, tune_mali=tune_mali, **kwargs)
 
-    @staticmethod
+    @classmethod
+    def _mutate_modality_attributes(
+        cls,
+        engine: Any,
+        snapshot: dict[str, Any],
+        report: DiagnosticReport,
+        **kwargs: Any,
+    ) -> None:
+        """Tier 2: BitNet specific mutation."""
+        ngl = _calculate_bitnet_layers(engine)
+        mali_align_required = (report.vendor_id == _MALI_VENDOR_ID or
+                               "Mali" in (report.device_name or ""))
+
+        cls._set_engine_property(engine, snapshot, "n_gpu_layers", ngl)
+        cls._set_engine_property(engine, snapshot, "ngl", ngl)
+        cls._set_engine_property(engine, snapshot, "flash_attn", True)
+        if mali_align_required:
+            cls._set_engine_property(engine, snapshot, "mali_128byte_align", True)
+
+        if isinstance(engine, list):
+            if "cli_args_len" not in snapshot:
+                snapshot["cli_args_len"] = len(engine)
+            if "-ngl" not in engine and "--n-gpu-layers" not in engine:
+                engine.extend(["-ngl", str(ngl)])
+            if "-fa" not in engine and "--flash-attn" not in engine:
+                engine.append("-fa")
+
+    @classmethod
     def bind(
+        cls,
         engine: Any = None,
         report: Any = None,
         profile: Any = None,
@@ -71,17 +99,18 @@ class BitnetAdapter(BaseAdapter):
             is_vk = False
         else:
             check_vulkan_availability_or_raise(
-                BitnetAdapter.module_name,
+                cls.module_name,
                 report,
                 is_vk,
                 requested_backend,
             )
 
-        config: dict = {
-            "module": BitnetAdapter.module_name,
+        config: dict[str, Any] = {
+            "module": cls.module_name,
             "device_name": report.device_name,
             "vendor_id": report.vendor_id,
         }
+        snapshot: dict[str, Any] = {}
 
         if is_vk:
             ngl = _calculate_bitnet_layers(engine)
@@ -97,110 +126,47 @@ class BitnetAdapter(BaseAdapter):
 
             if engine is not None:
                 try:
-                    if isinstance(engine, dict):
-                        engine.setdefault("ngl", ngl)
-                        engine.setdefault("n_gpu_layers", ngl)
-                        engine["device"] = "vulkan"
-                        engine.setdefault("flash_attn", True)
-                    elif hasattr(engine, "config"):
-                        cfg = engine.config
-                        if isinstance(cfg, dict):
-                            cfg["n_gpu_layers"] = ngl
-                            cfg["device"] = "vulkan"
-                            cfg["flash_attn"] = True
-                        else:
-                            if hasattr(cfg, "n_gpu_layers"):
-                                cfg.n_gpu_layers = ngl
-                            if hasattr(cfg, "device"):
-                                cfg.device = "vulkan"
-                            if hasattr(cfg, "flash_attn"):
-                                cfg.flash_attn = True
-                        logger.info(
-                            "[ameva-runtime:BitnetAdapter] Set config.n_gpu_layers=%d"
-                            " (device=%s, mali_align=%s)", ngl, report.device_name, mali_align_required
-                        )
-                    elif hasattr(engine, "n_gpu_layers"):
-                        engine.n_gpu_layers = ngl
-                        if hasattr(engine, "device"):
-                            engine.device = "vulkan"
-                        if hasattr(engine, "flash_attn"):
-                            engine.flash_attn = True
-                    elif isinstance(engine, list):
-                        if "-ngl" not in engine and "--n-gpu-layers" not in engine:
-                            engine.extend(["-ngl", str(ngl)])
-                        if "--device" not in engine and "-d" not in engine:
-                            engine.extend(["--device", "vulkan"])
-                        if "-fa" not in engine and "--flash-attn" not in engine:
-                            engine.append("-fa")
+                    threads = getattr(profile, "recommended_threads", 4) if profile else 4
+                    cls._mutate_common_attributes(engine, snapshot, backend="vulkan", threads=threads)
+                    cls._mutate_modality_attributes(engine, snapshot, report, **kwargs)
                 except Exception as e:
-                    logger.error("[ameva-runtime:BitnetAdapter] Binding error: %s", e)
+                    cls._restore_engine_properties(engine, snapshot)
+                    logger.error("[%s] Binding error: %s", cls.module_name, e)
                     raise AmevaRuntimeError(
-                        f"[ameva-runtime:BitnetAdapter] BitNetEngine Vulkan binding failure: {e}"
+                        f"[{cls.module_name}] BitNetEngine Vulkan binding failure: {e}"
                     ) from e
 
             return BindingResult(
-                module=BitnetAdapter.module_name,
+                module=cls.module_name,
                 backend="vulkan",
                 is_vulkan=True,
                 device_name=report.device_name,
                 vendor_id=report.vendor_id,
                 config=config,
                 status="BOUND",
+                restore_state=snapshot,
             )
         else:
-            config["n_threads"] = max(1, (os.cpu_count() or 8) // 2)
+            cpu_threads = max(1, (os.cpu_count() or 8) // 2)
+            config["n_threads"] = cpu_threads
             config["kernel"] = "neon_dotprod"
             if engine is not None:
-                if isinstance(engine, dict):
-                    engine["n_gpu_layers"] = 0
-                    engine["device"] = "cpu"
-                elif hasattr(engine, "config"):
-                    cfg = engine.config
-                    if isinstance(cfg, dict):
-                        cfg["n_gpu_layers"] = 0
-                        cfg["device"] = "cpu"
-                    else:
-                        if hasattr(cfg, "n_gpu_layers"):
-                            cfg.n_gpu_layers = 0
-                        if hasattr(cfg, "device"):
-                            cfg.device = "cpu"
-                elif hasattr(engine, "n_gpu_layers"):
-                    engine.n_gpu_layers = 0
-                    if hasattr(engine, "device"):
-                        engine.device = "cpu"
+                cls._mutate_common_attributes(engine, snapshot, backend="cpu", threads=cpu_threads)
+                cls._set_engine_property(engine, snapshot, "n_gpu_layers", 0)
+                cls._set_engine_property(engine, snapshot, "ngl", 0)
+
             return _make_cpu_binding(
-                BitnetAdapter.module_name,
+                cls.module_name,
                 report,
                 config,
                 reason="Explicit CPU requested" if requested_backend in ("cpu", "cpu_neon") else "Vulkan unavailable",
+                restore_state=snapshot,
             )
 
-    @staticmethod
-    def unbind(engine: Any = None) -> None:
-        logger.info("[ameva-runtime:BitnetAdapter] Unbinding adapter and resetting resources.")
-        if engine is not None:
-            try:
-                if isinstance(engine, dict):
-                    engine["n_gpu_layers"] = 0
-                    engine["device"] = "cpu"
-                elif hasattr(engine, "config"):
-                    cfg = engine.config
-                    if isinstance(cfg, dict):
-                        cfg["n_gpu_layers"] = 0
-                        cfg["device"] = "cpu"
-                    else:
-                        if hasattr(cfg, "n_gpu_layers"):
-                            cfg.n_gpu_layers = 0
-                        if hasattr(cfg, "device"):
-                            cfg.device = "cpu"
-                        if hasattr(cfg, "flash_attn"):
-                            cfg.flash_attn = False
-                elif hasattr(engine, "n_gpu_layers"):
-                    engine.n_gpu_layers = 0
-                    if hasattr(engine, "device"):
-                        engine.device = "cpu"
-            except Exception as e:
-                logger.debug("[ameva-runtime:BitnetAdapter] Ignored exception during unbind: %s", e)
+    @classmethod
+    def unbind(cls, engine: Any = None, binding_result: BindingResult | None = None) -> None:
+        """Restores engine state to pre-binding configuration without silent exception swallowing."""
+        super().unbind(engine, binding_result)
 
     @classmethod
     def build_cli_args(
