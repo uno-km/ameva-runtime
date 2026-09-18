@@ -1,0 +1,373 @@
+"""
+ameva_runtime.core
+==================
+Core AMEVA Runtime Engine & Hardware Orchestrator.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import re
+import shutil
+import subprocess
+import time
+from dataclasses import dataclass, field
+from typing import Any, Optional, Dict, List
+
+from .detector import detect_hardware, HardwareProfile
+from .router import SmartRouter, ExecutionPlan, get_router
+from .protocol import BindingResult
+from .exceptions import (
+    AmevaRuntimeError,
+    ModelNotFoundError,
+    AmbiguousModelMatchError,
+)
+
+logger = logging.getLogger("ameva_runtime.core")
+
+
+@dataclass
+class ExecutionResult:
+    """Detailed telemetry and generated text from on-device model execution."""
+    text: str
+    backend_used: str
+    model_name: str
+    prompt_tokens: int = 0
+    eval_tokens: int = 0
+    tokens_per_second: float = 0.0
+    prompt_tokens_per_second: float = 0.0
+    total_time_ms: float = 0.0
+    command: List[str] = field(default_factory=list)
+    rationale: str = ""
+    return_code: int = 0
+
+
+def resolve_model_path(model_arg: str) -> str:
+    """Resolves model path from direct path or standard Termux storage locations.
+
+    Adheres strictly to Zero-Silent-Fallback:
+    - Direct file path or exact match in candidates is adopted.
+    - Fuzzy match (*{model_arg}*.gguf):
+        - Exactly 1 candidate found: adopted.
+        - Multiple candidates found: raises AmbiguousModelMatchError (no implicit coercion/fallback).
+        - No candidates found: raises ModelNotFoundError with searched directories.
+    """
+    if not model_arg or not str(model_arg).strip():
+        raise ModelNotFoundError(model_arg or "<empty>")
+
+    # 1. Direct explicit file path
+    if os.path.isfile(model_arg):
+        return os.path.abspath(model_arg)
+
+    # 2. Exact candidates
+    candidates = [
+        os.path.expanduser(f"~/.termux-llama/models/{model_arg}"),
+        os.path.expanduser(f"~/.termux-llama/models/{model_arg}.gguf"),
+        f"/data/data/com.termux/files/home/.termux-llama/models/{model_arg}",
+        f"/data/data/com.termux/files/home/.termux-llama/models/{model_arg}.gguf",
+        os.path.expanduser(f"~/models/{model_arg}"),
+        os.path.expanduser(f"~/models/{model_arg}.gguf"),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return os.path.abspath(c)
+
+    # 3. Canonical Search Directories (Deduplicated)
+    import glob
+    raw_search_dirs = [
+        os.path.expanduser("~/.termux-llama/models"),
+        "/data/data/com.termux/files/home/.termux-llama/models",
+        os.path.expanduser("~/models"),
+    ]
+    canonical_search_dirs: List[str] = []
+    seen_dirs = set()
+    for sdir in raw_search_dirs:
+        expanded = os.path.expanduser(sdir)
+        if os.path.isdir(expanded):
+            real_dir = os.path.realpath(expanded)
+            if real_dir not in seen_dirs:
+                seen_dirs.add(real_dir)
+                canonical_search_dirs.append(real_dir)
+
+    all_matches: set[str] = set()
+    for sdir in canonical_search_dirs:
+        matches = glob.glob(os.path.join(sdir, f"*{model_arg}*.gguf"))
+        for m in matches:
+            if os.path.isfile(m):
+                all_matches.add(os.path.realpath(m))
+
+    match_list = sorted(list(all_matches))
+    if len(match_list) == 1:
+        return match_list[0]
+    elif len(match_list) > 1:
+        raise AmbiguousModelMatchError(model_arg, match_list)
+    else:
+        raise ModelNotFoundError(model_arg, canonical_search_dirs)
+
+
+
+def find_inference_binary() -> Optional[str]:
+    """Locates llama-cli inference binary strictly through LlamaCppAdapter without arbitrary search paths."""
+    from .adapters.llamacpp import LlamaCppAdapter
+    from .exceptions import AmevaLlamaAssetMissingError, AmevaLlamaVerificationError
+    try:
+        return LlamaCppAdapter.resolve_binary_path()
+    except (AmevaLlamaAssetMissingError, AmevaLlamaVerificationError):
+        return None
+
+
+def resolve_inference_environment(plan: ExecutionPlan, binary_path: str) -> Dict[str, str]:
+    """Assembles all dynamic library dependencies and vendor paths into LD_LIBRARY_PATH."""
+    env = os.environ.copy()
+    env.update(plan.env_overrides)
+
+    real_bin = os.path.realpath(binary_path)
+    bin_dir = os.path.dirname(real_bin)
+    candidate_dirs = [
+        os.path.abspath(os.path.join(bin_dir, "..", "lib")),
+        os.path.abspath(os.path.join(bin_dir, "..", "ggml", "src")),
+        os.path.abspath(os.path.join(bin_dir, "..", "src")),
+        bin_dir,
+        os.path.join(os.environ.get("PREFIX", "/data/data/com.termux/files/usr"), "lib"),
+        "/data/data/com.termux/files/usr/lib",
+        os.path.expanduser("~/.local/lib"),
+        os.path.expanduser("~/.termux-llama/current/lib"),
+    ]
+    cur_ld = env.get("LD_LIBRARY_PATH", "")
+    valid_paths = [p for p in candidate_dirs if os.path.isdir(p)]
+    if cur_ld:
+        valid_paths.append(cur_ld)
+    if valid_paths:
+        env["LD_LIBRARY_PATH"] = ":".join(valid_paths)
+    return env
+
+
+class AmevaRuntime:
+    """Central orchestrator for on-device AI acceleration."""
+
+    _instance: Optional["AmevaRuntime"] = None
+
+    def __init__(self, profile: HardwareProfile | None = None) -> None:
+        self.profile = profile or detect_hardware()
+        self.router = SmartRouter(self.profile)
+        logger.info(
+            "[AmevaRuntime] Initialized. SoC: %s (%s) | GPU: %s | Recommended: %s",
+            self.profile.soc_model, self.profile.vendor,
+            self.profile.gpu_family, self.profile.recommended_backend
+        )
+
+    @classmethod
+    def get_instance(cls) -> "AmevaRuntime":
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def bind_engine(self, module_name: str, engine: Any = None, **kwargs: Any) -> BindingResult:
+        """Dynamically binds an engine instance using the appropriate modality adapter."""
+        from .adapters import (
+            LlamaCppAdapter,
+            VisionAdapter,
+            DiffusionAdapter,
+            SttAdapter,
+            TtsAdapter,
+            BitnetAdapter,
+        )
+
+        adapter_map = {
+            "termux-llamacpp": LlamaCppAdapter,
+            "llamacpp": LlamaCppAdapter,
+            "termux-vision": VisionAdapter,
+            "vision": VisionAdapter,
+            "termux-diffusion": DiffusionAdapter,
+            "diffusion": DiffusionAdapter,
+            "termux-stt": SttAdapter,
+            "stt": SttAdapter,
+            "termux-tts": TtsAdapter,
+            "tts": TtsAdapter,
+            "termux-bitnet": BitnetAdapter,
+            "bitnet": BitnetAdapter,
+        }
+
+        adapter = adapter_map.get(module_name.lower())
+        if adapter is None:
+            raise AmevaRuntimeError(
+                f"Unknown module '{module_name}'. Supported modules: {list(adapter_map.keys())}"
+            )
+
+        return adapter.bind(engine=engine, profile=self.profile, **kwargs)
+
+    def plan_execution(
+        self,
+        model_name: str = "",
+        requested_backend: str | None = None,
+        requested_ngl: int | None = None,
+    ) -> ExecutionPlan:
+        """Returns an ExecutionPlan for running inference."""
+        return self.router.route_for_llm(
+            model_name_or_path=model_name,
+            requested_backend=requested_backend,
+            requested_ngl=requested_ngl,
+        )
+
+    def execute(
+        self,
+        model_path: str,
+        prompt: str = "Hello! Who are you?",
+        max_tokens: int = 64,
+        temperature: float = 0.7,
+        backend: str | None = None,
+        ngl: int | None = None,
+        stream_output: bool = True,
+    ) -> ExecutionResult:
+        """Executes model inference safely and returns structured performance telemetry."""
+        plan = self.plan_execution(
+            model_name=model_path,
+            requested_backend=backend,
+            requested_ngl=ngl,
+        )
+
+        from .adapters.llamacpp import LlamaCppAdapter
+        llama_cli = LlamaCppAdapter.resolve_binary_path()
+
+        resolved_model = resolve_model_path(model_path)
+        if not os.path.exists(resolved_model):
+            raise AmevaRuntimeError(f"Target model file not found: {model_path}")
+
+        cmd: List[str] = [
+            llama_cli,
+            "-m", resolved_model,
+            "-p", prompt,
+            "-n", str(max_tokens),
+            "-t", str(plan.threads),
+            "-ngl", str(plan.ngl),
+            "-b", str(plan.batch_size),
+            "-c", str(plan.context_size),
+            "--temp", str(temperature),
+            "--single-turn",
+            "--simple-io",
+            "--no-display-prompt",
+        ]
+
+        exec_env = resolve_inference_environment(plan, llama_cli)
+
+        # Apply CPU core affinity pinning if supported
+        if hasattr(os, "sched_setaffinity") and plan.affinity_cpus:
+            try:
+                os.sched_setaffinity(0, set(plan.affinity_cpus))
+            except Exception as e:
+                logger.warning("Could not set CPU affinity: %s", e)
+
+        t0 = time.perf_counter()
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            env=exec_env,
+            text=True,
+            bufsize=1,
+        )
+
+        stdout_out, stderr_out = proc.communicate()
+        total_time_ms = (time.perf_counter() - t0) * 1000.0
+
+        if proc.returncode != 0:
+            err_detail = stderr_out.strip() if stderr_out.strip() else stdout_out.strip()
+            raise AmevaRuntimeError(
+                f"Inference execution failed (exit code {proc.returncode}):\n{err_detail}"
+            )
+
+        full_output = stdout_out + "\n" + stderr_out
+
+        # Parse timing metrics from llama output
+        prompt_tokens = 0
+        eval_tokens = 0
+        tps = 0.0
+        prompt_tps = 0.0
+
+        m_prompt = re.search(r"prompt eval time\s*=\s*[\d\.]+\s*ms\s*/\s*(\d+)\s*tokens.*?([\d\.]+)\s*tokens per second", full_output)
+        if m_prompt:
+            prompt_tokens = int(m_prompt.group(1))
+            prompt_tps = float(m_prompt.group(2))
+
+        m_eval = re.search(r"eval time\s*=\s*[\d\.]+\s*ms\s*/\s*(\d+)\s*runs.*?([\d\.]+)\s*tokens per second", full_output)
+        if m_eval:
+            eval_tokens = int(m_eval.group(1))
+            tps = float(m_eval.group(2))
+
+        clean_text = stdout_out.strip()
+
+        return ExecutionResult(
+            text=clean_text,
+            backend_used=plan.backend.upper(),
+            model_name=os.path.basename(resolved_model),
+            prompt_tokens=prompt_tokens,
+            eval_tokens=eval_tokens,
+            tokens_per_second=tps,
+            prompt_tokens_per_second=prompt_tps,
+            total_time_ms=total_time_ms,
+            command=cmd,
+            rationale=plan.rationale,
+            return_code=proc.returncode,
+        )
+
+
+# --------------------------------------------------------------------------
+# Backward-compatibility classes and helpers (VulkanContext)
+# --------------------------------------------------------------------------
+class VulkanContext:
+    """Legacy VulkanContext for backward compatibility with ameva-vulkan-runtime."""
+    def __init__(self, runtime: AmevaRuntime | None = None) -> None:
+        self.runtime = runtime or AmevaRuntime.get_instance()
+        self.profile = self.runtime.profile
+        self.is_valid = (self.profile.recommended_backend == "vulkan")
+        self.device_name = self.profile.gpu_family
+
+    def bind(self, module_name: str, engine: Any = None, **kwargs: Any) -> BindingResult:
+        return self.runtime.bind_engine(module_name, engine, **kwargs)
+
+
+def get_runtime() -> AmevaRuntime:
+    """Convenience accessor for the global AmevaRuntime."""
+    return AmevaRuntime.get_instance()
+
+
+def create_context() -> VulkanContext:
+    return VulkanContext()
+
+
+def get_or_create_context() -> VulkanContext:
+    return VulkanContext()
+
+
+def run(
+    model: str,
+    prompt: str = "Hello! Who are you?",
+    max_tokens: int = 64,
+    temperature: float = 0.7,
+    backend: str | None = None,
+    ngl: int | None = None,
+) -> ExecutionResult:
+    """Top-level 1-liner to execute inference on optimal hardware."""
+    return get_runtime().execute(
+        model_path=model,
+        prompt=prompt,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        backend=backend,
+        ngl=ngl,
+    )
+
+
+def plan(
+    model: str = "",
+    backend: str | None = None,
+    ngl: int | None = None,
+) -> ExecutionPlan:
+    """Top-level helper to preview hardware execution plan."""
+    return get_runtime().plan_execution(
+        model_name=model,
+        requested_backend=backend,
+        requested_ngl=ngl,
+    )
+
